@@ -2,6 +2,8 @@
 
 Date: 2026-07-13 SGT. WB `c02ff745-aa1c-46e3-a246-227a3161a805`.
 
+Disposition update: Rasim main accepted the verified socket-driven spine and classified the native fork compilation as Teren-Mac downstream verification by design. The exact five-minute build/run path is now `BUILD-ON-YOUR-MAC.md`; the Studio toolchain finding below remains as a truthful environment receipt, not an open code blocker.
+
 ## Source and origin
 
 - PcL fork: `git@github.com:teren-papercutlabs/cmux.git`
@@ -90,4 +92,4 @@ Canonical host state:
 - `swift --version` → Apple Swift 6.3.1
 - `xcodebuild` is Apple's CLT stub, not a usable Xcode installation
 
-This blocks the WB criterion that the PcL fork itself builds with the Studio toolchain. Installing full Xcode.app requires an Apple distribution/auth path not present on this host. It does not block the fleet-layer spine or socket integration, which were exercised against a signed native cmux build. Do not mark the native-build criterion met until a full-Xcode host runs the tagged fork build.
+The Studio cannot compile the native fork. Installing full Xcode.app is explicitly out of scope for this production host. Native compilation and run verification therefore move to Teren's full-Xcode Mac using `BUILD-ON-YOUR-MAC.md`; the fleet-layer spine and unchanged socket contract were already consumer-verified against a signed native cmux build.
