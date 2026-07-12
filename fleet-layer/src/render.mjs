@@ -12,14 +12,14 @@ function truncate(value, width) {
 }
 
 function statusCell(status) {
-  if (status === 'needs-you') return `${C.red}${C.bold}NEEDS YOU${C.reset}`;
-  if (status === 'running') return `${C.green}running  ${C.reset}`;
-  return `${C.dim}idle     ${C.reset}`;
+  if (status === 'needs-you') return `${C.red}${C.bold}${'NEEDS YOU'.padEnd(10)}${C.reset}`;
+  if (status === 'running') return `${C.green}${'running'.padEnd(10)}${C.reset}`;
+  return `${C.dim}${'idle'.padEnd(10)}${C.reset}`;
 }
 
 function quotaCell(quota) {
-  if (!quota) return `${C.dim}unknown${C.reset}`;
-  const label = `${Math.round(quota.headroom)}% free`;
+  if (!quota) return `${C.dim}${'unknown'.padEnd(10)}${C.reset}`;
+  const label = `${Math.round(quota.headroom)}% free`.padEnd(10);
   return quota.nearWall ? `${C.red}${C.bold}${label}${C.reset}` : `${C.cyan}${label}${C.reset}`;
 }
 
@@ -40,9 +40,11 @@ export function render(snapshot, selected = 0, message = '') {
 
   snapshot.agents.forEach((agent, index) => {
     const pointer = index === selected ? `${C.inverse}>${C.reset}` : ' ';
-    const auto = agent.autonomous ? `${C.cyan}${C.bold}ARMED${C.reset}` : `${C.dim}—${C.reset}`;
+    const auto = agent.autonomous
+      ? `${C.cyan}${C.bold}${'ARMED'.padEnd(6)}${C.reset}`
+      : `${C.dim}${'—'.padEnd(6)}${C.reset}`;
     const pane = agent.jump ? `${C.green}ready${C.reset}` : `${C.dim}none${C.reset}`;
-    lines.push(`${pointer}   ${truncate(agent.name, 21)}  ${statusCell(agent.status)}  ${auto.padEnd(16)} ${quotaCell(agent.quota).padEnd(19)} ${pane}`);
+    lines.push(`${pointer}   ${truncate(agent.name, 21)}  ${statusCell(agent.status)} ${auto} ${quotaCell(agent.quota)} ${pane}`);
     if (agent.status === 'needs-you' && agent.attention?.summary) {
       lines.push(`      ${C.red}↳ ${truncate(agent.attention.summary, 76)}${C.reset}`);
     }

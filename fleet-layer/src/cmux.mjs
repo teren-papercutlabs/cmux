@@ -49,7 +49,7 @@ export class CmuxClient {
   }
 
   async listWorkspaces() {
-    const result = await this.invoke(['list-workspaces', '--json']);
+    const result = await this.invoke(['workspace', 'list', '--json']);
     return arrayFromEnvelope(parseJsonStdout(result, 'cmux list-workspaces')).map(workspaceFields);
   }
 
@@ -67,7 +67,8 @@ export class CmuxClient {
     const title = `PcL · ${agent.name}`;
     const command = `exec tmux attach-session -t ${tmux}`;
     const result = await this.invoke([
-      'new-workspace',
+      'workspace', 'create', '--json',
+      '--name', title,
       '--cwd', REPO_ROOT,
       '--command', command,
       '--description', marker,
@@ -76,14 +77,15 @@ export class CmuxClient {
     let id = '';
     try {
       const parsed = JSON.parse(output);
-      id = parsed?.data?.id ?? parsed?.id ?? parsed?.workspace_id ?? '';
+      id = parsed?.data?.id ?? parsed?.id ?? parsed?.workspace_ref
+        ?? parsed?.workspace_id ?? parsed?.data?.workspace_ref ?? parsed?.data?.workspace_id ?? '';
     } catch {
       id = output.match(/workspace(?::|\s)+([\w:-]+)/i)?.[1] ?? '';
     }
     const workspace = id ? { id } : await this.findAgentWorkspace(agent.id);
     if (!workspace?.id) throw new Error(`cmux created ${title} but returned no workspace id`);
     try {
-      await this.invoke(['rename-workspace', '--workspace', workspace.id, title]);
+      await this.invoke(['workspace', 'rename', '--workspace', workspace.id, title]);
     } catch {
       // The marker is the identity. A cosmetic rename must not block focus.
     }
@@ -93,7 +95,7 @@ export class CmuxClient {
   async focusAgent(agent) {
     const workspace = await this.findAgentWorkspace(agent.id)
       ?? await this.createAgentWorkspace(agent);
-    await this.invoke(['select-workspace', '--workspace', workspace.id]);
+    await this.invoke(['workspace', 'select', '--workspace', workspace.id]);
     return workspace;
   }
 
@@ -102,21 +104,21 @@ export class CmuxClient {
     const existing = (await this.listWorkspaces()).find((workspace) =>
       workspace.description.includes(marker));
     if (existing) {
-      await this.invoke(['select-workspace', '--workspace', existing.id]);
+      await this.invoke(['workspace', 'select', '--workspace', existing.id]);
       return existing;
     }
     const bin = path.join(REPO_ROOT, 'fleet-layer', 'bin', 'pcl-fleet');
     await access(bin);
     const command = `exec ${bin} cockpit`;
     await this.invoke([
-      'new-workspace', '--cwd', REPO_ROOT,
+      'workspace', 'create', '--json', '--name', 'PcL Fleet Cockpit', '--cwd', REPO_ROOT,
       '--command', command,
       '--description', marker,
     ], 15_000);
     const created = (await this.listWorkspaces()).find((workspace) =>
       workspace.description.includes(marker));
     if (!created) throw new Error('cmux did not expose the created cockpit workspace');
-    await this.invoke(['select-workspace', '--workspace', created.id]);
+    await this.invoke(['workspace', 'select', '--workspace', created.id]);
     return created;
   }
 }

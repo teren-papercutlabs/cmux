@@ -11,7 +11,7 @@ test('jump selects an existing marked workspace', async () => {
   const client = new CmuxClient({
     run: async (_command, args) => {
       calls.push(args);
-      if (args[0] === 'list-workspaces') {
+      if (args[0] === 'workspace' && args[1] === 'list') {
         return result(JSON.stringify({ data: [{ id: 'workspace:7', description: 'pcl-agent:rasim' }] }));
       }
       return result();
@@ -19,15 +19,15 @@ test('jump selects an existing marked workspace', async () => {
   });
   await client.focusAgent({ id: 'rasim', jump: { tmuxSession: 'rasim-main-teren' } });
   assert.deepEqual(calls, [
-    ['list-workspaces', '--json'],
-    ['select-workspace', '--workspace', 'workspace:7'],
+    ['workspace', 'list', '--json'],
+    ['workspace', 'select', '--workspace', 'workspace:7'],
   ]);
 });
 
 test('jump refuses unsafe tmux names before constructing a command', async () => {
   const client = new CmuxClient({
     run: async (_command, args) => {
-      if (args[0] === 'list-workspaces') return result(JSON.stringify({ data: [] }));
+      if (args[0] === 'workspace' && args[1] === 'list') return result(JSON.stringify({ data: [] }));
       return result();
     },
   });
