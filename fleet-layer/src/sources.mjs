@@ -94,7 +94,11 @@ export function parseAuth(stdout) {
 export class LiveSources {
   constructor(options = {}) {
     this.run = options.run ?? run;
-    this.timeoutMs = options.timeoutMs ?? 15_000;
+    // PcL's resident CLI families can serialize behind live fleet work. A
+    // 15-second cap false-failed three healthy sources together during the
+    // final Studio smoke. Keep the poll non-overlapping, but allow one bounded
+    // collection up to 30 seconds before declaring it stale.
+    this.timeoutMs = options.timeoutMs ?? 30_000;
   }
 
   async collect() {

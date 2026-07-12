@@ -14,6 +14,24 @@ This is a dependency-free Node sidecar. It reads PcL's existing state and contro
 
 ## Studio build and live run
 
+The native build requires the full Xcode app. `xcodebuild` existing as the
+Command Line Tools stub is not sufficient:
+
+```bash
+xcode-select -p
+xcodebuild -version
+```
+
+The first command must resolve inside `Xcode.app`; the second must print an
+Xcode version rather than `requires Xcode`.
+
+For external Terminal-driven `doctor` / `launch`, set cmux Settings →
+Automation → Socket Control Mode to **Automation mode**. That mode accepts
+same-macOS-user automation without opening the socket to other local users.
+The default **cmux processes only** mode is also safe: run
+`fleet-layer/bin/pcl-fleet cockpit` from an existing cmux terminal instead of
+using `launch` externally.
+
 ```bash
 git clone --recurse-submodules git@github.com:teren-papercutlabs/cmux.git ~/pcl/cmux
 cd ~/pcl/cmux
@@ -38,7 +56,7 @@ The snapshot must contain a non-empty `agents` array and internally consistent `
 
 ## Teren's Mac: pull and run
 
-Prerequisites: Xcode command-line tools, Swift toolchain, Node 22+, PcL `pcl`/`marshal` commands, access to the PcL database route, and the local agent tmux sessions to jump into.
+Prerequisites: full Xcode.app, Swift toolchain, Node 22+, PcL `pcl`/`marshal` commands, access to the PcL database route, and the local agent tmux sessions to jump into.
 
 ```bash
 git clone --recurse-submodules git@github.com:teren-papercutlabs/cmux.git ~/pcl/cmux
