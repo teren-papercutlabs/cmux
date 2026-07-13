@@ -1,17 +1,51 @@
+import { existsSync } from 'node:fs';
 import { access } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseJsonStdout, run } from './command.mjs';
+import { resolveOfficeCommand, safeViewerId } from './transport.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
-const MARKER_PREFIX = 'pcl-agent:';
+const MARKER_PREFIX = 'pcl-fleet:office';
 
 function safeTmuxName(value) {
   if (!/^[A-Za-z0-9_.:-]+$/.test(value)) {
     throw new Error(`unsafe tmux session name: ${JSON.stringify(value)}`);
   }
   return value;
+}
+
+function safeIdentityValue(label, value) {
+  const text = String(value ?? '');
+  if (!text || !/^[A-Za-z0-9_.:-]+$/.test(text)) {
+    throw new Error(`unsafe ${label}: ${JSON.stringify(value)}`);
+  }
+  return text;
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", `'"'"'`)}'`;
+}
+
+function agentMarker(agent, viewerId) {
+  const agentId = safeIdentityValue('agent id', agent.id);
+  const sessionId = safeIdentityValue('session id', agent.jump?.sessionId);
+  const tmux = safeTmuxName(agent.jump?.tmuxSession);
+  return `${MARKER_PREFIX};agent=${agentId};viewer=${viewerId};session=${sessionId};tmux=${tmux}`;
+}
+
+export function resolveCmuxCommand(options = {}) {
+  const env = options.env ?? process.env;
+  if (env.CMUX_CLI) return env.CMUX_CLI;
+  const home = options.homeDir ?? os.homedir();
+  const exists = options.exists ?? existsSync;
+  const candidates = [
+    path.join(home, 'Applications', 'cmux.app', 'Contents', 'Resources', 'bin', 'cmux'),
+    '/Applications/cmux.app/Contents/Resources/bin/cmux',
+  ];
+  return candidates.find((candidate) => exists(candidate)) ?? 'cmux';
 }
 
 function arrayFromEnvelope(value) {
@@ -32,11 +66,37 @@ function workspaceFields(raw) {
   };
 }
 
+function transportProcessNames(value, output = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) transportProcessNames(item, output);
+    return output;
+  }
+  if (!value || typeof value !== 'object') return output;
+  for (const [key, nested] of Object.entries(value)) {
+    if (['name', 'path', 'command', 'executable', 'argv'].includes(key)) {
+      if (Array.isArray(nested)) output.push(nested.join(' '));
+      else if (typeof nested === 'string') output.push(nested);
+    }
+    transportProcessNames(nested, output);
+  }
+  return output;
+}
+
 export class CmuxClient {
   constructor(options = {}) {
-    this.command = options.command ?? process.env.CMUX_CLI ?? 'cmux';
     this.env = options.env ?? process.env;
+    this.command = options.command ?? resolveCmuxCommand({
+      env: this.env,
+      homeDir: options.homeDir ?? os.homedir(),
+      exists: options.exists ?? existsSync,
+    });
     this.run = options.run ?? run;
+    this.viewerId = safeViewerId(options.viewerId ?? this.env.PCL_FLEET_VIEWER_ID);
+    this.officeCommand = options.officeCommand ?? resolveOfficeCommand({
+      env: this.env,
+      homeDir: options.homeDir ?? os.homedir(),
+      exists: options.exists ?? existsSync,
+    });
   }
 
   async invoke(args, timeoutMs = 10_000) {
@@ -53,19 +113,31 @@ export class CmuxClient {
     return arrayFromEnvelope(parseJsonStdout(result, 'cmux list-workspaces')).map(workspaceFields);
   }
 
-  async findAgentWorkspace(agentId) {
-    const marker = `${MARKER_PREFIX}${agentId}`;
+  async findAgentWorkspace(agent) {
+    const marker = agentMarker(agent, this.viewerId);
     const workspaces = await this.listWorkspaces();
     return workspaces.find((workspace) => workspace.description.includes(marker)
       || workspace.title.includes(`[${marker}]`)) ?? null;
   }
 
+  async transportWorkspaceIsLive(workspace) {
+    const result = await this.invoke([
+      '--json', 'top', '--workspace', workspace.id, '--processes',
+    ], 15_000);
+    const payload = parseJsonStdout(result, 'cmux top');
+    return transportProcessNames(payload).some((name) => /(^|[/\s-])mosh(?:-client)?($|[\s])/i.test(name));
+  }
+
+  async closeWorkspace(workspace) {
+    await this.invoke(['workspace', 'close', '--workspace', workspace.id]);
+  }
+
   async createAgentWorkspace(agent) {
     if (!agent.jump?.tmuxSession) throw new Error(`${agent.id} has no pane-backed live session`);
     const tmux = safeTmuxName(agent.jump.tmuxSession);
-    const marker = `${MARKER_PREFIX}${agent.id}`;
+    const marker = agentMarker(agent, this.viewerId);
     const title = `PcL · ${agent.name}`;
-    const command = `exec tmux attach-session -t ${tmux}`;
+    const command = `exec ${shellQuote(this.officeCommand)} attach ${shellQuote(tmux)}`;
     const result = await this.invoke([
       'workspace', 'create', '--json',
       '--name', title,
@@ -82,7 +154,7 @@ export class CmuxClient {
     } catch {
       id = output.match(/workspace(?::|\s)+([\w:-]+)/i)?.[1] ?? '';
     }
-    const workspace = id ? { id } : await this.findAgentWorkspace(agent.id);
+    const workspace = id ? { id } : await this.findAgentWorkspace(agent);
     if (!workspace?.id) throw new Error(`cmux created ${title} but returned no workspace id`);
     try {
       await this.invoke(['workspace', 'rename', '--workspace', workspace.id, title]);
@@ -93,14 +165,18 @@ export class CmuxClient {
   }
 
   async focusAgent(agent) {
-    const workspace = await this.findAgentWorkspace(agent.id)
-      ?? await this.createAgentWorkspace(agent);
+    let workspace = await this.findAgentWorkspace(agent);
+    if (workspace && !await this.transportWorkspaceIsLive(workspace)) {
+      await this.closeWorkspace(workspace);
+      workspace = null;
+    }
+    workspace ??= await this.createAgentWorkspace(agent);
     await this.invoke(['workspace', 'select', '--workspace', workspace.id]);
     return workspace;
   }
 
   async launchCockpit() {
-    const marker = 'pcl-fleet-cockpit';
+    const marker = `pcl-fleet-cockpit;viewer=${this.viewerId}`;
     const existing = (await this.listWorkspaces()).find((workspace) =>
       workspace.description.includes(marker));
     if (existing) {
@@ -109,7 +185,17 @@ export class CmuxClient {
     }
     const bin = path.join(REPO_ROOT, 'fleet-layer', 'bin', 'pcl-fleet');
     await access(bin);
-    const command = `exec ${bin} cockpit`;
+    const preservedEnv = {
+      CMUX_CLI: this.command,
+      PCL_OFFICE_CLI: this.officeCommand,
+    };
+    for (const key of ['CMUX_SOCKET_PATH', 'CMUX_TAG', 'CMUX_BUNDLE_ID', 'CMUX_BUNDLED_CLI_PATH']) {
+      if (this.env[key]) preservedEnv[key] = this.env[key];
+    }
+    const envArgs = Object.entries(preservedEnv)
+      .map(([key, value]) => shellQuote(`${key}=${value}`))
+      .join(' ');
+    const command = `exec env ${envArgs} ${shellQuote(bin)} cockpit --viewer-id ${shellQuote(this.viewerId)}`;
     await this.invoke([
       'workspace', 'create', '--json', '--name', 'PcL Fleet Cockpit', '--cwd', REPO_ROOT,
       '--command', command,

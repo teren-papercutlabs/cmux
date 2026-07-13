@@ -23,13 +23,29 @@ function quotaCell(quota) {
   return quota.nearWall ? `${C.red}${C.bold}${label}${C.reset}` : `${C.cyan}${label}${C.reset}`;
 }
 
-export function render(snapshot, selected = 0, message = '') {
+export function formatAge(milliseconds) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1_000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
+}
+
+export function renderOffline(message, failureAgeMs = null) {
+  const failedAgo = failureAgeMs === null ? '' : ` · failed ${formatAge(failureAgeMs)} ago`;
+  return `OFFLINE · no complete snapshot${failedAgo}\n${message}`;
+}
+
+export function render(snapshot, selected = 0, message = '', freshness = { state: 'fresh' }) {
   const { counts } = snapshot;
   const barWidth = 28;
   const filled = counts.total ? Math.round((counts.autonomous / counts.total) * barWidth) : 0;
   const bar = `${'█'.repeat(filled)}${'░'.repeat(barWidth - filled)}`;
   const lines = [];
   lines.push(`${C.bold}${C.white}PcL FLEET COCKPIT${C.reset}  ${C.dim}${new Date(snapshot.collectedAt).toLocaleTimeString()}${C.reset}`);
+  if (freshness.state === 'stale') {
+    lines.push(`${C.yellow}${C.bold}STALE · last complete snapshot ${formatAge(freshness.ageMs)} ago${C.reset}`);
+  }
   lines.push('');
   lines.push(`${C.bold}${C.cyan}AUTONOMOUS ${counts.autonomous}/${counts.total} · ${counts.autonomousPercent}%${C.reset}  ${C.cyan}${bar}${C.reset}`);
   lines.push(`${counts.needsYou ? C.red + C.bold : C.dim}NEEDS YOU ${counts.needsYou}${C.reset}   running ${counts.running}   idle ${counts.idle}   near quota wall ${counts.nearWall}`);
@@ -58,7 +74,7 @@ export function render(snapshot, selected = 0, message = '') {
 }
 
 export class Cockpit {
-  constructor({ collect, cmux, pollMs = Number(process.env.PCL_FLEET_POLL_MS ?? 10_000) }) {
+  constructor({ collect, cmux, pollMs = Number(process.env.PCL_FLEET_POLL_MS ?? 10_000), now = Date.now }) {
     this.collect = collect;
     this.cmux = cmux;
     this.pollMs = Math.max(1_000, pollMs);
@@ -67,6 +83,9 @@ export class Cockpit {
     this.message = 'loading live fleet…';
     this.timer = null;
     this.refreshing = false;
+    this.now = now;
+    this.lastCompleteAt = null;
+    this.lastFailureAt = null;
   }
 
   async refresh() {
@@ -74,9 +93,12 @@ export class Cockpit {
     this.refreshing = true;
     try {
       this.snapshot = await this.collect();
+      this.lastCompleteAt = this.now();
+      this.lastFailureAt = null;
       this.selected = Math.min(this.selected, this.snapshot.agents.length - 1);
       this.message = '';
     } catch (error) {
+      this.lastFailureAt = this.now();
       this.message = `refresh failed: ${error.message}`;
     } finally {
       this.refreshing = false;
@@ -86,8 +108,16 @@ export class Cockpit {
 
   paint() {
     process.stdout.write('\x1b[2J\x1b[H');
-    if (this.snapshot) process.stdout.write(`${render(this.snapshot, this.selected, this.message)}\n`);
-    else process.stdout.write(`${this.message}\n`);
+    if (this.snapshot) {
+      const freshness = this.lastFailureAt === null ? { state: 'fresh' } : {
+        state: 'stale',
+        ageMs: this.now() - this.lastCompleteAt,
+      };
+      process.stdout.write(`${render(this.snapshot, this.selected, this.message, freshness)}\n`);
+    } else {
+      const failureAgeMs = this.lastFailureAt === null ? null : this.now() - this.lastFailureAt;
+      process.stdout.write(`${renderOffline(this.message, failureAgeMs)}\n`);
+    }
   }
 
   async jump() {

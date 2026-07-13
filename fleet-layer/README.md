@@ -2,7 +2,10 @@
 
 Mission control for the autonomous PcL fleet, hosted inside cmux. The primary read is the percentage of active agents with a registered autonomous loop. `needs-you` is the exception queue.
 
-This is a dependency-free Node sidecar. It reads PcL's existing state and controls cmux through the supported CLI/unix socket. It does not write fleet state.
+This is a dependency-free Node sidecar. On Teren's Mac it reads one viewer-scoped,
+complete snapshot from the Studio through the Office CLI, then controls local cmux
+through the supported CLI/unix socket. It does not copy Studio database credentials
+to the Mac and does not write fleet state.
 
 ## What v1 shows
 
@@ -46,37 +49,50 @@ CMUX_TAG=pcl-fleet CMUX_CLI="$PWD/scripts/cmux-debug-cli.sh" \
 
 The tagged helper selects `/tmp/cmux-debug-pcl-fleet.sock` and the CLI bundled with the matching app. Do not use an untagged debug build.
 
-Run a source-only smoke without cmux:
+Run a source-only Studio smoke without cmux:
 
 ```bash
-fleet-layer/bin/pcl-fleet snapshot --json
+PCL_FLEET_TRANSPORT=local fleet-layer/bin/pcl-fleet snapshot --json
 ```
 
 The snapshot must contain a non-empty `agents` array and internally consistent `counts`. It is real live state, not a fixture.
 
-## Teren's Mac: pull and run
+## Teren's Mac: Office bridge
 
-Prerequisites: full Xcode.app, Swift toolchain, Node 22+, PcL `pcl`/`marshal` commands, access to the PcL database route, and the local agent tmux sessions to jump into.
-
-```bash
-git clone --recurse-submodules git@github.com:teren-papercutlabs/cmux.git ~/pcl/cmux
-cd ~/pcl/cmux
-./scripts/setup.sh
-./scripts/reload.sh --tag pcl-fleet --launch
-CMUX_TAG=pcl-fleet CMUX_CLI="$PWD/scripts/cmux-debug-cli.sh" \
-  fleet-layer/bin/pcl-fleet launch
-```
-
-For later pulls:
+Prerequisites: the PcL fork build of cmux, Node 22+, and the Office CLI with
+`--machine` support. Office remains the only machine boundary: snapshot refreshes
+use its SSH transport and jumps use its existing mosh attach path. The MBA does not
+need PcL database credentials, local Studio tmux sessions, or local `pcl`/`marshal`
+installations.
 
 ```bash
 cd ~/pcl/cmux
-git pull --ff-only origin main
-git submodule update --init --recursive
-./scripts/reload.sh --tag pcl-fleet --launch
-CMUX_TAG=pcl-fleet CMUX_CLI="$PWD/scripts/cmux-debug-cli.sh" \
-  fleet-layer/bin/pcl-fleet doctor
+fleet-layer/bin/pcl-fleet snapshot --viewer-id 276672685 --json
+fleet-layer/bin/pcl-fleet launch --viewer-id 276672685
 ```
+
+The refresh command is fixed argv, not interpolated shell text:
+
+```bash
+office --machine run -- pcl fleet snapshot --viewer-id 276672685
+```
+
+Machine mode skips Office's updater/background fetch and routine logger writes,
+so the 10-second cockpit poll does not grow `~/.office/logs/office.log`. The
+subprocess has a 45-second outer timeout and an 8 MiB output cap. A refresh is
+accepted only after the full snapshot passes its schema/count invariants.
+
+`PCL_OFFICE_CLI` overrides Office discovery. Otherwise the fleet layer uses
+`~/.local/bin/office` when present, then falls back to `office` on `PATH`.
+`--viewer-id` is required and becomes part of every managed workspace identity.
+`PCL_FLEET_VIEWER_ID` can supply the same value as a local default, but
+`launch --viewer-id ...` embeds the validated viewer in the spawned cockpit so
+it does not depend on the caller's transient environment.
+
+`launch` also embeds the resolved `CMUX_CLI`, `CMUX_SOCKET_PATH`, tagged-build
+metadata, and Office path into the cockpit command. That keeps refresh and Enter
+bound to the installed fork app and its exact socket after the external launch
+process exits.
 
 ## Controls
 
@@ -85,27 +101,35 @@ CMUX_TAG=pcl-fleet CMUX_CLI="$PWD/scripts/cmux-debug-cli.sh" \
 - `r`: refresh now
 - `q`: close the cockpit process
 
-The cockpit refreshes every 10 seconds. Override with `PCL_FLEET_POLL_MS`. Quota is near-wall at 15% remaining by default; override with `PCL_FLEET_NEAR_WALL_HEADROOM`.
+The cockpit refreshes every 10 seconds. Override with `PCL_FLEET_POLL_MS`. Quota is near-wall at 15% remaining by default; override with `PCL_FLEET_NEAR_WALL_HEADROOM`. A failed refresh retains only the last complete snapshot and labels it `STALE` with its age. Before any complete snapshot, failure is labelled `OFFLINE`.
 
 ## Commands
 
 ```text
-pcl-fleet snapshot [--json]
-pcl-fleet cockpit
-pcl-fleet launch
-pcl-fleet jump <agent-id>
-pcl-fleet doctor
+pcl-fleet snapshot --viewer-id <principal-id> [--json]
+pcl-fleet cockpit --viewer-id <principal-id>
+pcl-fleet launch --viewer-id <principal-id>
+pcl-fleet jump <agent-id> --viewer-id <principal-id>
+pcl-fleet doctor --viewer-id <principal-id>
 ```
 
-`doctor` checks both the live PcL projection and cmux socket reachability. Collector subprocesses use fixed argv, separate stdout/stderr, output caps, and timeouts. The known `marshal db query` deprecation warning stays on stderr and is never fed into the JSON parser.
+`doctor` checks both the viewer-scoped Studio projection through Office and local
+cmux socket reachability. Use `PCL_FLEET_TRANSPORT=local` only for a Studio-side
+diagnostic of the legacy multi-source collector.
 
 ## Failure posture
 
 - Required source failure fails the refresh loudly; it never turns absence into idle.
 - Missing account binding renders quota `unknown`; the global selected seat is not guessed.
 - Missing tmux target renders pane `none`; jump refuses rather than opening a wrong session.
-- Managed workspaces are identified by `pcl-agent:<id>` descriptions.
-- V1 never deletes a workspace automatically.
+- Managed transport workspaces are identified by an exact marker containing the
+  viewer id, Studio session id, and validated tmux target. A marker for an older
+  target is never reused.
+- Jump targets accept only `[A-Za-z0-9_.:-]+`; unsafe tmux input is rejected before
+  cmux is called.
+- Reuse requires a live `mosh-client` in the workspace process tree. A managed
+  workspace whose transport exited is closed and recreated with
+  `office attach <tmux>`.
 
 ## License boundary
 
