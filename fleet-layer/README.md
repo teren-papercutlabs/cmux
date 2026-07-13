@@ -124,12 +124,15 @@ diagnostic of the legacy multi-source collector.
 - Missing tmux target renders pane `none`; jump refuses rather than opening a wrong session.
 - Managed transport workspaces are identified by an exact marker containing the
   viewer id, Studio session id, and validated tmux target. A marker for an older
-  target is never reused.
+  target is never reused; prefix matches are rejected.
 - Jump targets accept only `[A-Za-z0-9_.:-]+`; unsafe tmux input is rejected before
   cmux is called.
 - Reuse requires a live `mosh-client` in the workspace process tree. A managed
   workspace whose transport exited is closed and recreated with
   `office attach <tmux>`.
+- The cockpit workspace also uses an exact viewer marker. Its Node process names
+  itself `pcl-fleet-ctl`; launch closes and recreates the managed workspace when
+  that process is gone instead of selecting a dead terminal.
 
 ## License boundary
 

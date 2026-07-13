@@ -9,6 +9,7 @@ import { resolveOfficeCommand, safeViewerId } from './transport.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
 const MARKER_PREFIX = 'pcl-fleet:office';
+export const COCKPIT_PROCESS_NAME = 'pcl-fleet-ctl';
 
 function safeTmuxName(value) {
   if (!/^[A-Za-z0-9_.:-]+$/.test(value)) {
@@ -116,16 +117,26 @@ export class CmuxClient {
   async findAgentWorkspace(agent) {
     const marker = agentMarker(agent, this.viewerId);
     const workspaces = await this.listWorkspaces();
-    return workspaces.find((workspace) => workspace.description.includes(marker)
-      || workspace.title.includes(`[${marker}]`)) ?? null;
+    return workspaces.find((workspace) => workspace.description.trim() === marker
+      || workspace.title.trim() === `[${marker}]`) ?? null;
   }
 
-  async transportWorkspaceIsLive(workspace) {
+  async workspaceProcessEvidence(workspace) {
     const result = await this.invoke([
       '--json', 'top', '--workspace', workspace.id, '--processes',
     ], 15_000);
     const payload = parseJsonStdout(result, 'cmux top');
-    return transportProcessNames(payload).some((name) => /(^|[/\s-])mosh(?:-client)?($|[\s])/i.test(name));
+    return transportProcessNames(payload);
+  }
+
+  async transportWorkspaceIsLive(workspace) {
+    const evidence = await this.workspaceProcessEvidence(workspace);
+    return evidence.some((name) => /(^|[/\s-])mosh(?:-client)?($|[\s])/i.test(name));
+  }
+
+  async cockpitWorkspaceIsLive(workspace) {
+    const evidence = await this.workspaceProcessEvidence(workspace);
+    return evidence.some((value) => path.basename(value) === COCKPIT_PROCESS_NAME);
   }
 
   async closeWorkspace(workspace) {
@@ -177,8 +188,14 @@ export class CmuxClient {
 
   async launchCockpit() {
     const marker = `pcl-fleet-cockpit;viewer=${this.viewerId}`;
-    const existing = (await this.listWorkspaces()).find((workspace) =>
-      workspace.description.includes(marker));
+    let existing = (await this.listWorkspaces()).find((workspace) =>
+      workspace.description.trim() === marker);
+    if (existing) {
+      if (!await this.cockpitWorkspaceIsLive(existing)) {
+        await this.closeWorkspace(existing);
+        existing = null;
+      }
+    }
     if (existing) {
       await this.invoke(['workspace', 'select', '--workspace', existing.id]);
       return existing;
@@ -202,7 +219,7 @@ export class CmuxClient {
       '--description', marker,
     ], 15_000);
     const created = (await this.listWorkspaces()).find((workspace) =>
-      workspace.description.includes(marker));
+      workspace.description.trim() === marker);
     if (!created) throw new Error('cmux did not expose the created cockpit workspace');
     await this.invoke(['workspace', 'select', '--workspace', created.id]);
     return created;

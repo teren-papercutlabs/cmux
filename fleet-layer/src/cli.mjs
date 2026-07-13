@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { CmuxClient } from './cmux.mjs';
+import { CmuxClient, COCKPIT_PROCESS_NAME } from './cmux.mjs';
 import { assertSnapshot, buildFleetSnapshot } from './project.mjs';
 import { Cockpit, render } from './render.mjs';
 import { LiveSources } from './sources.mjs';
@@ -72,6 +72,7 @@ async function main() {
     return;
   }
   if (command === 'cockpit') {
+    process.title = COCKPIT_PROCESS_NAME;
     await new Cockpit({ collect: collectSnapshot, cmux }).start();
     return;
   }
