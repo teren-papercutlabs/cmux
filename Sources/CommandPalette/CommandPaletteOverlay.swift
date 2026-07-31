@@ -17,7 +17,7 @@ struct CommandPaletteRenderResultRow: Identifiable, Equatable {
     let title: String
     let matchedIndices: Set<Int>
     let trailingLabel: CommandPaletteRenderTrailingLabel?
-    let sectionLabel: String? = nil
+    let sectionLabel: String?
 }
 
 struct CommandPaletteCommandListRenderState: Equatable {
