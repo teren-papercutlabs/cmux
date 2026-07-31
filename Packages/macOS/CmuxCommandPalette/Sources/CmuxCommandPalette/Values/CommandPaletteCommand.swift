@@ -15,6 +15,8 @@ public struct CommandPaletteCommand: Identifiable {
     public let shortcutHint: String?
     /// Optional kind label (for example a switcher row's surface kind).
     public let kindLabel: String?
+    /// Optional visual section used by switcher projections.
+    public let sectionLabel: String?
     /// Additional search keywords.
     public let keywords: [String]
     /// Whether activating the command dismisses the palette.
@@ -30,6 +32,7 @@ public struct CommandPaletteCommand: Identifiable {
         subtitle: String,
         shortcutHint: String?,
         kindLabel: String?,
+        sectionLabel: String? = nil,
         keywords: [String],
         dismissOnRun: Bool,
         action: @escaping () -> Void
@@ -40,6 +43,7 @@ public struct CommandPaletteCommand: Identifiable {
         self.subtitle = subtitle
         self.shortcutHint = shortcutHint
         self.kindLabel = kindLabel
+        self.sectionLabel = sectionLabel
         self.keywords = keywords
         self.dismissOnRun = dismissOnRun
         self.action = action

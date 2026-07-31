@@ -32,6 +32,39 @@ var fileDropOverlayKey: UInt8 = 0
 private var commandPaletteWindowOverlayKey: UInt8 = 0
 let commandPaletteOverlayContainerIdentifier = NSUserInterfaceItemIdentifier("cmux.commandPalette.overlay.container")
 private func sidebarShortTabId(_ id: UUID?) -> String { id.map { String($0.uuidString.prefix(5)) } ?? "nil" }
+
+struct PcLPrioritySwitcherConfiguration: Codable, Equatable {
+    static let defaultsKey = "PcLPrioritySwitcherConfiguration.v1"
+    static let groups = ["HIVE", "Altitude", "Infra", "PA"]
+
+    var leadSurfaceId: UUID?
+    var understudySurfaceId: UUID?
+    var groupBySurfaceId: [UUID: String] = [:]
+
+    static func load(defaults: UserDefaults = .standard) -> Self {
+        guard let data = defaults.data(forKey: defaultsKey),
+              let value = try? JSONDecoder().decode(Self.self, from: data) else { return Self() }
+        return value
+    }
+
+    func save(defaults: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        defaults.set(data, forKey: Self.defaultsKey)
+    }
+
+    mutating func assign(role: Role, surfaceId: UUID) {
+        switch role {
+        case .lead:
+            leadSurfaceId = surfaceId
+            if understudySurfaceId == surfaceId { understudySurfaceId = nil }
+        case .understudy:
+            understudySurfaceId = surfaceId
+            if leadSurfaceId == surfaceId { leadSurfaceId = nil }
+        }
+    }
+
+    enum Role { case lead, understudy }
+}
 @MainActor
 private final class CommandPaletteOverlayContainerView: NSView {
     var capturesMouseEvents = false
@@ -3542,6 +3575,7 @@ struct ContentView: View {
                     text: $commandPaletteQuery,
                     isFocused: Binding(get: { isCommandPaletteSearchFocused }, set: { isCommandPaletteSearchFocused = $0 }),
                     onSubmit: runSelectedCommandPaletteResult,
+                    onAlternateSubmit: runUnderstudyCommandPaletteResult,
                     onEscape: { dismissCommandPalette() },
                     onMoveSelection: moveCommandPaletteSelection(by:),
                     onUnhandledNavigationKey: forwardCommandPaletteUnhandledNavigationKeyToFocusedTerminal
@@ -3866,6 +3900,7 @@ struct ContentView: View {
         @Binding var text: String
         @Binding var isFocused: Bool
         let onSubmit: () -> Void
+        let onAlternateSubmit: () -> Void
         let onEscape: () -> Void
         let onMoveSelection: (Int) -> Void
         let onUnhandledNavigationKey: (NSEvent) -> Bool
@@ -3919,7 +3954,14 @@ struct ContentView: View {
                     return NSApp.currentEvent.map(parent.onUnhandledNavigationKey) ?? false
                 case #selector(NSResponder.insertNewline(_:)):
                     guard !textView.hasMarkedText() else { return false }
-                    parent.onSubmit()
+                    let flags = event?.modifierFlags
+                        .intersection(.deviceIndependentFlagsMask)
+                        .subtracting([.numericPad, .function, .capsLock]) ?? []
+                    if flags == .command {
+                        parent.onAlternateSubmit()
+                    } else {
+                        parent.onSubmit()
+                    }
                     return true
                 case #selector(NSResponder.cancelOperation(_:)):
                     guard !textView.hasMarkedText() else { return false }
@@ -3944,6 +3986,14 @@ struct ContentView: View {
                     mode: "single_line"
                 ) {
                     parent.onSubmit()
+                    return true
+                }
+
+                let normalizedFlags = event.modifierFlags
+                    .intersection(.deviceIndependentFlagsMask)
+                    .subtracting([.numericPad, .function, .capsLock])
+                if (event.keyCode == 36 || event.keyCode == 76), normalizedFlags == .command {
+                    parent.onAlternateSubmit()
                     return true
                 }
 
@@ -4787,7 +4837,7 @@ struct ContentView: View {
     ) -> Bool {
         let scope = commandPaletteListScope(for: query)
         guard scope == .switcher else { return false }
-        return searchAllSurfaces && !commandPaletteQueryForMatching(query: query, scope: scope).isEmpty
+        return true
     }
 
     private func refreshCommandPaletteSearchCorpus(
@@ -4921,7 +4971,18 @@ struct ContentView: View {
         scope: CommandPaletteListScope,
         fingerprint: Int?
     ) {
-        commandPaletteVisibleResults = results
+        if scope == .switcher,
+           !Self.commandPaletteQueryForMatching(query: commandPaletteQuery, scope: scope)
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let groupOrder = ["HIVE", "Altitude", "Infra", "PA", "Other"]
+            commandPaletteVisibleResults = results.enumerated().sorted { lhs, rhs in
+                let left = groupOrder.firstIndex(of: lhs.element.command.sectionLabel ?? "Other") ?? groupOrder.count
+                let right = groupOrder.firstIndex(of: rhs.element.command.sectionLabel ?? "Other") ?? groupOrder.count
+                return left == right ? lhs.offset < rhs.offset : left < right
+            }.map(\.element)
+        } else {
+            commandPaletteVisibleResults = results
+        }
         commandPaletteVisibleResultsScope = scope
         commandPaletteVisibleResultsFingerprint = fingerprint
         commandPaletteVisibleResultsVersion &+= 1
@@ -4945,7 +5006,8 @@ struct ContentView: View {
                 id: result.id,
                 title: result.command.title,
                 matchedIndices: result.titleMatchIndices,
-                trailingLabel: commandPaletteRenderTrailingLabel(for: result.command)
+                trailingLabel: commandPaletteRenderTrailingLabel(for: result.command),
+                sectionLabel: result.command.sectionLabel
             )
         }
         let selectedIndex = commandPaletteSelectedIndex(resultCount: rows.count)
@@ -5000,7 +5062,7 @@ struct ContentView: View {
         let searchCorpusByID = commandPaletteSearchCorpusByID
         let searchIndex = commandPaletteNucleoSearchIndex
         let commandsByID = commandPaletteSearchCommandsByID
-        let usageHistory = commandPaletteUsageHistoryByCommandId
+        let usageHistory = scope == .switcher ? [:] : commandPaletteUsageHistoryByCommandId
         let queryIsEmpty = CommandPaletteFuzzyMatcher.preparedQuery(matchingQuery).isEmpty
         let historyTimestamp = Date().timeIntervalSince1970
         let additionalScoreBoost: (String, Bool) -> Int = { commandId, _ in
@@ -5255,7 +5317,10 @@ struct ContentView: View {
                 }
             )
         }
-        return CommandPaletteSwitcherFingerprintContext.fingerprint(windowContexts: fingerprintContexts)
+        var hasher = Hasher()
+        hasher.combine(CommandPaletteSwitcherFingerprintContext.fingerprint(windowContexts: fingerprintContexts))
+        hasher.combine(UserDefaults.standard.data(forKey: PcLPrioritySwitcherConfiguration.defaultsKey))
+        return hasher.finalize()
     }
 
     private static func commandPaletteHighlightedTitleText(_ title: String, matchedIndices: Set<Int>) -> Text {
@@ -5329,6 +5394,15 @@ struct ContentView: View {
     private func commandPaletteSwitcherEntries(includeSurfaces: Bool) -> [CommandPaletteCommand] {
         let windowContexts = commandPaletteSwitcherWindowContexts()
         guard !windowContexts.isEmpty else { return [] }
+        let priorityConfiguration = PcLPrioritySwitcherConfiguration.load()
+
+        if Self.commandPaletteQueryForMatching(query: commandPaletteQuery, scope: .switcher)
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return commandPalettePrioritySwitcherEntries(
+                contexts: windowContexts,
+                configuration: priorityConfiguration
+            )
+        }
 
         var entries: [CommandPaletteCommand] = []
         let estimatedCount = windowContexts.reduce(0) { partial, context in
@@ -5372,6 +5446,10 @@ struct ContentView: View {
                         subtitle: Self.commandPaletteSwitcherSubtitle(base: String(localized: "commandPalette.switcher.workspaceLabel", defaultValue: "Workspace"), windowLabel: context.windowLabel),
                         shortcutHint: nil,
                         kindLabel: String(localized: "commandPalette.kind.workspace", defaultValue: "Workspace"),
+                        sectionLabel: commandPaletteGroup(
+                            for: workspace,
+                            configuration: priorityConfiguration
+                        ),
                         keywords: workspaceKeywords,
                         dismissOnRun: true,
                         action: {
@@ -5417,6 +5495,11 @@ struct ContentView: View {
                             subtitle: Self.commandPaletteSwitcherSubtitle(base: workspaceName, windowLabel: context.windowLabel),
                             shortcutHint: nil,
                             kindLabel: surfaceKindLabel,
+                            sectionLabel: commandPaletteGroup(
+                                for: panel,
+                                title: surfaceName,
+                                configuration: priorityConfiguration
+                            ),
                             keywords: surfaceKeywords,
                             dismissOnRun: true,
                             action: {
@@ -5435,6 +5518,90 @@ struct ContentView: View {
         }
 
         return entries
+    }
+
+    private func commandPalettePrioritySwitcherEntries(
+        contexts: [CommandPaletteSwitcherWindowContext],
+        configuration: PcLPrioritySwitcherConfiguration
+    ) -> [CommandPaletteCommand] {
+        let roles: [(String, UUID?)] = [
+            ("Lead", configuration.leadSurfaceId),
+            ("Understudy", configuration.understudySurfaceId),
+        ]
+        var entries: [CommandPaletteCommand] = []
+        for (rank, role) in roles.enumerated() {
+            guard let stableSurfaceId = role.1 else { continue }
+            for context in contexts {
+                for workspace in context.tabManager.tabs {
+                    guard let match = workspace.panels.first(where: {
+                        $0.value.stableSurfaceId == stableSurfaceId
+                    }) else { continue }
+                    let surfaceName = panelDisplayName(
+                        workspace: workspace,
+                        panelId: match.key,
+                        fallback: match.value.displayTitle
+                    )
+                    let windowId = context.windowId
+                    let workspaceId = workspace.id
+                    let panelId = match.key
+                    entries.append(CommandPaletteCommand(
+                        id: "switcher.priority.\(role.0.lowercased())",
+                        rank: rank,
+                        title: "\(role.0) — \(surfaceName)",
+                        subtitle: workspaceDisplayName(workspace),
+                        shortcutHint: role.0 == "Lead" ? "↩" : "⌘↩",
+                        kindLabel: nil,
+                        sectionLabel: "Priority",
+                        keywords: [role.0, surfaceName],
+                        dismissOnRun: true,
+                        action: {
+                            focusCommandPaletteSwitcherSurfaceTarget(
+                                windowId: windowId,
+                                tabManager: context.tabManager,
+                                workspaceId: workspaceId,
+                                panelId: panelId
+                            )
+                        }
+                    ))
+                    break
+                }
+                if entries.last?.id == "switcher.priority.\(role.0.lowercased())" { break }
+            }
+        }
+        return entries
+    }
+
+    private func commandPaletteGroup(
+        for panel: any Panel,
+        title: String,
+        configuration: PcLPrioritySwitcherConfiguration
+    ) -> String {
+        if let explicit = configuration.groupBySurfaceId[panel.stableSurfaceId] {
+            return explicit
+        }
+        let normalized = title.lowercased()
+        if normalized.contains("kleya") || normalized.contains("hive") { return "HIVE" }
+        if normalized.contains("altitude") || normalized.contains("fixer-teren-ms8kao0q") { return "Altitude" }
+        if normalized.contains("rasim") || normalized.contains("resilience")
+            || normalized.contains("cns") || normalized.contains("fixer-teren-ms7c87cu") { return "Infra" }
+        if normalized.contains("edna") || normalized.contains("tgg")
+            || normalized.contains("client-knowledge") || normalized.contains("workflow-engine") { return "PA" }
+        return "Other"
+    }
+
+    private func commandPaletteGroup(
+        for workspace: Workspace,
+        configuration: PcLPrioritySwitcherConfiguration
+    ) -> String {
+        for panelId in commandPaletteOrderedSwitcherPanels(for: workspace) {
+            guard let panel = workspace.panels[panelId] else { continue }
+            return commandPaletteGroup(
+                for: panel,
+                title: panelDisplayName(workspace: workspace, panelId: panelId, fallback: panel.displayTitle),
+                configuration: configuration
+            )
+        }
+        return "Other"
     }
 
     private func commandPaletteSwitcherWindowContexts() -> [CommandPaletteSwitcherWindowContext] {
@@ -5499,17 +5666,7 @@ struct ContentView: View {
     private func commandPaletteOrderedSwitcherWorkspaces(
         for context: CommandPaletteSwitcherWindowContext
     ) -> [Workspace] {
-        var workspaces = context.tabManager.tabs
-        guard !workspaces.isEmpty else { return [] }
-
-        let selectedWorkspaceId = context.selectedWorkspaceId ?? context.tabManager.selectedTabId
-        if let selectedWorkspaceId,
-           let selectedIndex = workspaces.firstIndex(where: { $0.id == selectedWorkspaceId }) {
-            let selectedWorkspace = workspaces.remove(at: selectedIndex)
-            workspaces.insert(selectedWorkspace, at: 0)
-        }
-
-        return workspaces
+        context.tabManager.tabs
     }
 
     private func commandPaletteOrderedSwitcherPanels(for workspace: Workspace) -> [UUID] {
@@ -6885,6 +7042,46 @@ struct ContentView: View {
 
         var contributions: [CommandPaletteCommandContribution] = []
         contributions.append(contentsOf: Self.commandPaletteCloudCommandContributions())
+        contributions.append(contentsOf: [
+            CommandPaletteCommandContribution(
+                commandId: "pcl.priority.setLead",
+                title: constant("Priority: Make Current Session Lead"),
+                subtitle: panelSubtitle,
+                keywords: ["pcl", "priority", "lead", "anoint"]
+            ),
+            CommandPaletteCommandContribution(
+                commandId: "pcl.priority.setUnderstudy",
+                title: constant("Priority: Make Current Session Understudy"),
+                subtitle: panelSubtitle,
+                keywords: ["pcl", "priority", "understudy", "anoint"]
+            ),
+            CommandPaletteCommandContribution(
+                commandId: "pcl.priority.clearLead",
+                title: constant("Priority: Clear Lead"),
+                subtitle: constant("PcL session priority"),
+                keywords: ["pcl", "priority", "lead", "clear"]
+            ),
+            CommandPaletteCommandContribution(
+                commandId: "pcl.priority.clearUnderstudy",
+                title: constant("Priority: Clear Understudy"),
+                subtitle: constant("PcL session priority"),
+                keywords: ["pcl", "priority", "understudy", "clear"]
+            ),
+        ])
+        for group in PcLPrioritySwitcherConfiguration.groups {
+            contributions.append(CommandPaletteCommandContribution(
+                commandId: "pcl.priority.group.\(group.lowercased())",
+                title: constant("Association: Put Current Session in \(group)"),
+                subtitle: panelSubtitle,
+                keywords: ["pcl", "association", "group", group.lowercased()]
+            ))
+        }
+        contributions.append(CommandPaletteCommandContribution(
+            commandId: "pcl.priority.group.clear",
+            title: constant("Association: Clear Current Session Group"),
+            subtitle: panelSubtitle,
+            keywords: ["pcl", "association", "group", "clear"]
+        ))
 
         contributions.append(
             CommandPaletteCommandContribution(
@@ -8116,7 +8313,51 @@ struct ContentView: View {
         }
     }
 
+    private func setFocusedPrioritySwitcherRole(_ role: PcLPrioritySwitcherConfiguration.Role) {
+        guard let panel = focusedPanelContext?.panel else {
+            NSSound.beep()
+            return
+        }
+        var configuration = PcLPrioritySwitcherConfiguration.load()
+        configuration.assign(role: role, surfaceId: panel.stableSurfaceId)
+        configuration.save()
+    }
+
+    private func setFocusedPrioritySwitcherGroup(_ group: String?) {
+        guard let panel = focusedPanelContext?.panel else {
+            NSSound.beep()
+            return
+        }
+        var configuration = PcLPrioritySwitcherConfiguration.load()
+        configuration.groupBySurfaceId[panel.stableSurfaceId] = group
+        configuration.save()
+    }
+
     private func registerCommandPaletteHandlers(_ registry: inout CommandPaletteHandlerRegistry) {
+        registry.register(commandId: "pcl.priority.setLead") {
+            setFocusedPrioritySwitcherRole(.lead)
+        }
+        registry.register(commandId: "pcl.priority.setUnderstudy") {
+            setFocusedPrioritySwitcherRole(.understudy)
+        }
+        registry.register(commandId: "pcl.priority.clearLead") {
+            var configuration = PcLPrioritySwitcherConfiguration.load()
+            configuration.leadSurfaceId = nil
+            configuration.save()
+        }
+        registry.register(commandId: "pcl.priority.clearUnderstudy") {
+            var configuration = PcLPrioritySwitcherConfiguration.load()
+            configuration.understudySurfaceId = nil
+            configuration.save()
+        }
+        for group in PcLPrioritySwitcherConfiguration.groups {
+            registry.register(commandId: "pcl.priority.group.\(group.lowercased())") {
+                setFocusedPrioritySwitcherGroup(group)
+            }
+        }
+        registry.register(commandId: "pcl.priority.group.clear") {
+            setFocusedPrioritySwitcherGroup(nil)
+        }
         registry.register(commandId: "palette.newWorkspace") {
             AppDelegate.shared?.performNewWorkspaceAction(
                 tabManager: tabManager,
@@ -8998,18 +9239,18 @@ struct ContentView: View {
             }
             runCommandPaletteCommand(command)
         case .selected(let fallbackIndex):
-            guard !cachedCommandPaletteResults.isEmpty else {
+            guard !commandPaletteVisibleResults.isEmpty else {
                 NSSound.beep()
                 return
             }
             let resolvedIndex = Self.commandPaletteResolvedSelectionIndex(
                 preferredCommandID: commandPaletteSelectionAnchorCommandID,
                 fallbackSelectedIndex: fallbackIndex,
-                resultIDs: cachedCommandPaletteResults.map(\.id)
+                resultIDs: commandPaletteVisibleResults.map(\.id)
             )
             commandPaletteSelectedResultIndex = resolvedIndex
             syncCommandPaletteSelectionAnchorFromCurrentResults()
-            runCommandPaletteCommand(cachedCommandPaletteResults[resolvedIndex].command)
+            runCommandPaletteCommand(commandPaletteVisibleResults[resolvedIndex].command)
         }
     }
 
@@ -9039,6 +9280,18 @@ struct ContentView: View {
         }
 
         runCommandPaletteResolvedActivation(.selected(index: commandPaletteSelectedResultIndex))
+    }
+
+    private func runUnderstudyCommandPaletteResult() {
+        let matchingQuery = Self.commandPaletteQueryForMatching(
+            query: commandPaletteQuery,
+            scope: commandPaletteListScope
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard commandPaletteListScope == .switcher, matchingQuery.isEmpty else {
+            runSelectedCommandPaletteResult()
+            return
+        }
+        runCommandPaletteResult(commandID: "switcher.priority.understudy")
     }
 
     private func handleCommandPaletteSubmitRequest() {
@@ -9072,7 +9325,9 @@ struct ContentView: View {
         cmuxDebugLog("palette.run commandId=\(command.id) dismissOnRun=\(command.dismissOnRun ? 1 : 0)")
 #endif
         let postRunFocusTarget = commandPalettePostRunFocusTarget(for: command)
-        recordCommandPaletteUsage(command.id)
+        if !command.id.hasPrefix("switcher.") {
+            recordCommandPaletteUsage(command.id)
+        }
         if command.dismissOnRun,
            Self.commandPaletteShouldDismissBeforeRun(forCommandId: command.id) {
             if let postRunFocusTarget {

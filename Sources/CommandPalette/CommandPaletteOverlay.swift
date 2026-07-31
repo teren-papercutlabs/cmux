@@ -17,6 +17,7 @@ struct CommandPaletteRenderResultRow: Identifiable, Equatable {
     let title: String
     let matchedIndices: Set<Int>
     let trailingLabel: CommandPaletteRenderTrailingLabel?
+    let sectionLabel: String? = nil
 }
 
 struct CommandPaletteCommandListRenderState: Equatable {
@@ -84,9 +85,15 @@ struct CommandPaletteCommandListRowsView: View {
     private static let emptyStateHeight: CGFloat = 44
 
     var body: some View {
+        let sectionCount = state.rows.enumerated().reduce(into: 0) { count, item in
+            guard let section = item.element.sectionLabel else { return }
+            if item.offset == 0 || state.rows[item.offset - 1].sectionLabel != section {
+                count += 1
+            }
+        }
         let contentHeight = state.rows.isEmpty
             ? Self.emptyStateHeight
-            : CGFloat(state.rows.count) * Self.rowHeight
+            : CGFloat(state.rows.count + sectionCount) * Self.rowHeight
         let listHeight = min(Self.listMaxHeight, contentHeight)
 
         ScrollView {
@@ -112,23 +119,34 @@ struct CommandPaletteCommandListRowsView: View {
                             ? cmuxAccentColor().opacity(0.12)
                             : (isHovered ? Color.primary.opacity(0.08) : .clear)
 
-                        Button {
-                            onRunResult(row.id)
-                        } label: {
-                            ContentView.commandPaletteRenderResultLabelContent(
-                                title: row.title,
-                                matchedIndices: row.matchedIndices,
-                                trailingLabel: row.trailingLabel
-                            )
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(rowBackground)
-                            .contentShape(Rectangle())
+                        VStack(spacing: 0) {
+                            if let section = row.sectionLabel,
+                               index == 0 || state.rows[index - 1].sectionLabel != section {
+                                Text(section.uppercased())
+                                    .cmuxFont(size: 10, weight: .semibold)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 9)
+                                    .frame(height: Self.rowHeight)
+                            }
+                            Button {
+                                onRunResult(row.id)
+                            } label: {
+                                ContentView.commandPaletteRenderResultLabelContent(
+                                    title: row.title,
+                                    matchedIndices: row.matchedIndices,
+                                    trailingLabel: row.trailingLabel
+                                )
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(rowBackground)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("CommandPaletteResultRow.\(index)")
+                            .accessibilityValue(row.id)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("CommandPaletteResultRow.\(index)")
-                        .accessibilityValue(row.id)
                         .onHover { hovering in
                             if hovering {
                                 hoveredIndex = index

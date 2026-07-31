@@ -32,6 +32,37 @@ private typealias StoredShortcut = cmux_DEV.StoredShortcut
 private typealias StoredShortcut = cmux.StoredShortcut
 #endif
 
+final class PcLPrioritySwitcherConfigurationTests: XCTestCase {
+    func testRoleAssignmentKeepsRolesDistinct() {
+        var configuration = PcLPrioritySwitcherConfiguration()
+        let first = UUID()
+        let second = UUID()
+
+        configuration.assign(role: .lead, surfaceId: first)
+        configuration.assign(role: .understudy, surfaceId: second)
+        XCTAssertEqual(configuration.leadSurfaceId, first)
+        XCTAssertEqual(configuration.understudySurfaceId, second)
+
+        configuration.assign(role: .understudy, surfaceId: first)
+        XCTAssertNil(configuration.leadSurfaceId)
+        XCTAssertEqual(configuration.understudySurfaceId, first)
+    }
+
+    func testConfigurationPersistsStableSurfaceIDsAndGroups() {
+        let suite = "PcLPrioritySwitcherConfigurationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let surface = UUID()
+        var configuration = PcLPrioritySwitcherConfiguration()
+        configuration.assign(role: .lead, surfaceId: surface)
+        configuration.groupBySurfaceId[surface] = "HIVE"
+
+        configuration.save(defaults: defaults)
+
+        XCTAssertEqual(PcLPrioritySwitcherConfiguration.load(defaults: defaults), configuration)
+    }
+}
+
 final class SplitShortcutTransientFocusGuardTests: XCTestCase {
     func testSuppressesWhenFirstResponderFallsBackAndHostedViewIsTiny() {
         XCTAssertTrue(
