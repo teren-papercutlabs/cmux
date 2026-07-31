@@ -5547,12 +5547,10 @@ struct ContentView: View {
         ]
         var entries: [CommandPaletteCommand] = []
         for (rank, role) in roles.enumerated() {
-            guard let stableSurfaceId = role.1 else { continue }
+            guard let surfaceId = role.1 else { continue }
             for context in contexts {
                 for workspace in context.tabManager.tabs {
-                    guard let match = workspace.panels.first(where: {
-                        $0.value.stableSurfaceId == stableSurfaceId
-                    }) else { continue }
+                    guard let match = workspace.panels.first(where: { $0.key == surfaceId }) else { continue }
                     let surfaceName = panelDisplayName(
                         workspace: workspace,
                         panelId: match.key,
@@ -5593,7 +5591,7 @@ struct ContentView: View {
         title: String,
         configuration: PcLPrioritySwitcherConfiguration
     ) -> String {
-        if let explicit = configuration.groupBySurfaceId[panel.stableSurfaceId] {
+        if let explicit = configuration.groupBySurfaceId[panel.id] {
             return explicit
         }
         let normalized = title.lowercased()
@@ -8331,22 +8329,22 @@ struct ContentView: View {
     }
 
     private func setFocusedPrioritySwitcherRole(_ role: PcLPrioritySwitcherConfiguration.Role) {
-        guard let panel = focusedPanelContext?.panel else {
+        guard let panelContext = focusedPanelContext else {
             NSSound.beep()
             return
         }
         var configuration = PcLPrioritySwitcherConfiguration.load()
-        configuration.assign(role: role, surfaceId: panel.stableSurfaceId)
+        configuration.assign(role: role, surfaceId: panelContext.panelId)
         configuration.save()
     }
 
     private func setFocusedPrioritySwitcherGroup(_ group: String?) {
-        guard let panel = focusedPanelContext?.panel else {
+        guard let panelContext = focusedPanelContext else {
             NSSound.beep()
             return
         }
         var configuration = PcLPrioritySwitcherConfiguration.load()
-        configuration.groupBySurfaceId[panel.stableSurfaceId] = group
+        configuration.groupBySurfaceId[panelContext.panelId] = group
         configuration.save()
     }
 
