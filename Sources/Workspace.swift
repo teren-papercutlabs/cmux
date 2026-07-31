@@ -2669,7 +2669,7 @@ final class Workspace: Identifiable, ObservableObject {
             configuredHex: paneBorderColorHex,
             fallback: defaultBorderHex
         )
-        let configuredTabBarHex = WorkspaceTabColorSettings.normalizedHex(paneTabBarBackgroundColorHex)
+        let configuredTabBarHex = paneTabBarBackgroundColorHex.flatMap(WorkspaceTabColorSettings.normalizedHex)
         let tabBarHex = configuredTabBarHex ?? surfaceHex
 
         if sharesWindowBackdrop {
@@ -2716,7 +2716,7 @@ final class Workspace: Identifiable, ObservableObject {
             configuredHex: paneBorderColorHex,
             fallback: defaultBorderHex
         )
-        let configuredTabBarHex = WorkspaceTabColorSettings.normalizedHex(paneTabBarBackgroundColorHex)
+        let configuredTabBarHex = paneTabBarBackgroundColorHex.flatMap(WorkspaceTabColorSettings.normalizedHex)
         let tabBarHex = configuredTabBarHex ?? backgroundHex
 
         if sharesWindowBackdrop {
