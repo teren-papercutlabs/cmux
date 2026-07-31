@@ -2654,7 +2654,8 @@ final class Workspace: Identifiable, ObservableObject {
         backgroundOpacity: Double,
         sharesWindowBackdrop: Bool = false,
         renderingMode: GhosttyTerminalBackdropRenderingMode = .windowHostBackdrop,
-        paneBorderColorHex: String? = nil
+        paneBorderColorHex: String? = nil,
+        paneTabBarBackgroundColorHex: String? = nil
     ) -> BonsplitConfiguration.Appearance.ChromeColors {
         let surfaceHex = bonsplitChromeHex(
             backgroundColor: backgroundColor,
@@ -2668,12 +2669,15 @@ final class Workspace: Identifiable, ObservableObject {
             configuredHex: paneBorderColorHex,
             fallback: defaultBorderHex
         )
+        let configuredTabBarHex = WorkspaceTabColorSettings.normalizedHex(paneTabBarBackgroundColorHex)
+        let tabBarHex = configuredTabBarHex ?? surfaceHex
 
         if sharesWindowBackdrop {
             return .init(
                 backgroundHex: surfaceHex,
-                tabBarBackgroundHex: "#00000000",
-                splitButtonBackdropHex: "#00000000",
+                tabBarBackgroundHex: configuredTabBarHex == nil ? "#00000000" : tabBarHex,
+                tabItemBackgroundHex: surfaceHex,
+                splitButtonBackdropHex: configuredTabBarHex == nil ? "#00000000" : tabBarHex,
                 paneBackgroundHex: "#00000000",
                 borderHex: borderHex
             )
@@ -2687,8 +2691,9 @@ final class Workspace: Identifiable, ObservableObject {
             : "#00000000"
         return .init(
             backgroundHex: surfaceHex,
-            tabBarBackgroundHex: surfaceHex,
-            splitButtonBackdropHex: surfaceHex,
+            tabBarBackgroundHex: tabBarHex,
+            tabItemBackgroundHex: surfaceHex,
+            splitButtonBackdropHex: tabBarHex,
             paneBackgroundHex: paneBackgroundHex,
             borderHex: borderHex
         )
@@ -2698,7 +2703,8 @@ final class Workspace: Identifiable, ObservableObject {
         from backgroundColor: NSColor,
         sharesWindowBackdrop: Bool = false,
         renderingMode: GhosttyTerminalBackdropRenderingMode = .windowHostBackdrop,
-        paneBorderColorHex: String? = nil
+        paneBorderColorHex: String? = nil,
+        paneTabBarBackgroundColorHex: String? = nil
     ) -> BonsplitConfiguration.Appearance.ChromeColors {
         // Keep this signature aligned with bonsplitChromeHex for settings tests
         // and future background-image handling.
@@ -2710,12 +2716,15 @@ final class Workspace: Identifiable, ObservableObject {
             configuredHex: paneBorderColorHex,
             fallback: defaultBorderHex
         )
+        let configuredTabBarHex = WorkspaceTabColorSettings.normalizedHex(paneTabBarBackgroundColorHex)
+        let tabBarHex = configuredTabBarHex ?? backgroundHex
 
         if sharesWindowBackdrop {
             return .init(
                 backgroundHex: backgroundHex,
-                tabBarBackgroundHex: "#00000000",
-                splitButtonBackdropHex: "#00000000",
+                tabBarBackgroundHex: configuredTabBarHex == nil ? "#00000000" : tabBarHex,
+                tabItemBackgroundHex: backgroundHex,
+                splitButtonBackdropHex: configuredTabBarHex == nil ? "#00000000" : tabBarHex,
                 paneBackgroundHex: "#00000000",
                 borderHex: borderHex
             )
@@ -2729,8 +2738,9 @@ final class Workspace: Identifiable, ObservableObject {
             : "#00000000"
         return .init(
             backgroundHex: backgroundHex,
-            tabBarBackgroundHex: backgroundHex,
-            splitButtonBackdropHex: backgroundHex,
+            tabBarBackgroundHex: tabBarHex,
+            tabItemBackgroundHex: backgroundHex,
+            splitButtonBackdropHex: tabBarHex,
             paneBackgroundHex: paneBackgroundHex,
             borderHex: borderHex
         )
@@ -2742,6 +2752,7 @@ final class Workspace: Identifiable, ObservableObject {
     ) -> Bool {
         lhs.backgroundHex == rhs.backgroundHex &&
             lhs.tabBarBackgroundHex == rhs.tabBarBackgroundHex &&
+            lhs.tabItemBackgroundHex == rhs.tabItemBackgroundHex &&
             lhs.splitButtonBackdropHex == rhs.splitButtonBackdropHex &&
             lhs.paneBackgroundHex == rhs.paneBackgroundHex &&
             lhs.borderHex == rhs.borderHex
@@ -2752,6 +2763,7 @@ final class Workspace: Identifiable, ObservableObject {
     ) -> String {
         "bg=\(colors.backgroundHex ?? "nil") " +
             "tabBarBg=\(colors.tabBarBackgroundHex ?? "nil") " +
+            "tabItemBg=\(colors.tabItemBackgroundHex ?? "nil") " +
             "splitBackdrop=\(colors.splitButtonBackdropHex ?? "nil") " +
             "paneBg=\(colors.paneBackgroundHex ?? "nil") " +
             "border=\(colors.borderHex ?? "nil")"
@@ -2771,7 +2783,8 @@ final class Workspace: Identifiable, ObservableObject {
             backgroundOpacity: backgroundOpacity,
             sharesWindowBackdrop: sharesWindowBackdrop,
             renderingMode: renderingMode,
-            paneBorderColorHex: PaneChromeSettings.paneBorderColorHex()
+            paneBorderColorHex: PaneChromeSettings.paneBorderColorHex(),
+            paneTabBarBackgroundColorHex: PaneChromeSettings.paneTabBarBackgroundColorHex()
         )
         return BonsplitConfiguration.Appearance(
             tabBarHeight: WindowChromeMetrics.bonsplitTabBarHeight,
@@ -2795,7 +2808,8 @@ final class Workspace: Identifiable, ObservableObject {
             backgroundOpacity: config.backgroundOpacity,
             sharesWindowBackdrop: sharesWindowBackdrop,
             renderingMode: renderingMode,
-            paneBorderColorHex: PaneChromeSettings.paneBorderColorHex()
+            paneBorderColorHex: PaneChromeSettings.paneBorderColorHex(),
+            paneTabBarBackgroundColorHex: PaneChromeSettings.paneTabBarBackgroundColorHex()
         )
         let nextTabTitleFontSize = config.surfaceTabBarFontSize
         let currentAppearance = bonsplitController.configuration.appearance
@@ -2854,7 +2868,8 @@ final class Workspace: Identifiable, ObservableObject {
             backgroundOpacity: backgroundOpacity,
             sharesWindowBackdrop: sharesWindowBackdrop,
             renderingMode: renderingMode,
-            paneBorderColorHex: PaneChromeSettings.paneBorderColorHex()
+            paneBorderColorHex: PaneChromeSettings.paneBorderColorHex(),
+            paneTabBarBackgroundColorHex: PaneChromeSettings.paneTabBarBackgroundColorHex()
         )
         let currentChromeColors = bonsplitController.configuration.appearance.chromeColors
         let currentUsesSharedBackdrop = bonsplitController.configuration.appearance.usesSharedBackdrop

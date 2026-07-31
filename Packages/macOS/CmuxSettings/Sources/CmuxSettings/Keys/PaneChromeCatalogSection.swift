@@ -20,6 +20,22 @@ public struct PaneChromeCatalogSection: SettingCatalogSection {
         userDefaultsKey: "activePaneBorderColor"
     )
 
+    /// Optional background color for the workspace titlebar band.
+    public let workspaceTitlebarBackgroundColorHex = DefaultsKey<String>(
+        id: "workspaceTitlebarBackgroundColor",
+        defaultValue: "",
+        userDefaultsKey: "workspaceTitlebarBackgroundColor"
+    )
+
+    /// Optional background color for the empty pane tab rail and split controls.
+    ///
+    /// Tab item fills remain derived from the terminal background.
+    public let paneTabBarBackgroundColorHex = DefaultsKey<String>(
+        id: "paneTabBarBackgroundColor",
+        defaultValue: "",
+        userDefaultsKey: "paneTabBarBackgroundColor"
+    )
+
     /// Creates the pane chrome settings section with its default keys.
     public init() {}
 }

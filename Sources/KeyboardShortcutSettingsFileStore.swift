@@ -448,6 +448,8 @@ final class CmuxSettingsFileStore {
         let keys = [
             PaneChromeSettings.paneBorderColorKey,
             PaneChromeSettings.activePaneBorderColorKey,
+            PaneChromeSettings.workspaceTitlebarBackgroundColorKey,
+            PaneChromeSettings.paneTabBarBackgroundColorKey,
         ]
         for key in keys where root.keys.contains(key) {
             guard let value = parseNullableHex(root[key], path: key, sourcePath: sourcePath) else {
@@ -1621,7 +1623,9 @@ final class CmuxSettingsFileStore {
                 }
 
                 if change.defaultsKey == PaneChromeSettings.paneBorderColorKey ||
-                    change.defaultsKey == PaneChromeSettings.activePaneBorderColorKey {
+                    change.defaultsKey == PaneChromeSettings.activePaneBorderColorKey ||
+                    change.defaultsKey == PaneChromeSettings.workspaceTitlebarBackgroundColorKey ||
+                    change.defaultsKey == PaneChromeSettings.paneTabBarBackgroundColorKey {
                     paneChromeDidChange = true
                 }
 

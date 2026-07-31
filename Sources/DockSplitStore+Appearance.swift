@@ -54,7 +54,8 @@ extension DockSplitStore {
                 backgroundOpacity: config.backgroundOpacity,
                 sharesWindowBackdrop: sharesWindowBackdrop,
                 renderingMode: renderingMode,
-                paneBorderColorHex: PaneChromeSettings.paneBorderColorHex()
+                paneBorderColorHex: PaneChromeSettings.paneBorderColorHex(),
+                paneTabBarBackgroundColorHex: PaneChromeSettings.paneTabBarBackgroundColorHex()
             ),
             usesSharedBackdrop: sharesWindowBackdrop
         )

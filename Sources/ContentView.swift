@@ -857,6 +857,7 @@ struct ContentView: View {
     @AppStorage(MinimalModeTitlebarDebugSettings.trafficLightTabBarInsetKey) private var titlebarTrafficLightTabBarInset = MinimalModeTitlebarDebugSettings.defaultTrafficLightTabBarInset
     @AppStorage(MinimalModeTitlebarDebugSettings.trafficLightTitlebarLeadingInsetKey) private var titlebarTrafficLightTitlebarLeadingInset = MinimalModeTitlebarDebugSettings.defaultTrafficLightTitlebarLeadingInset
     @AppStorage(PaneChromeSettings.activePaneBorderColorKey) private var activePaneBorderColorHex = PaneChromeSettings.defaultColorHex
+    @AppStorage(PaneChromeSettings.workspaceTitlebarBackgroundColorKey) private var workspaceTitlebarBackgroundColorHex = PaneChromeSettings.defaultColorHex
     @LiveSetting(\.shortcuts.showModifierHoldHints) private var showModifierHoldHints
     @LiveSetting(\.customSidebars.renderer) private var customSidebarRenderer
     /// Canonical sidebar width, deliberately NOT observed by ContentView:
@@ -2108,6 +2109,11 @@ struct ContentView: View {
     private func customTitlebar(appearance: WindowAppearanceSnapshot) -> some View {
         let titlebarContentHeight = max(1, WindowChromeMetrics.appTitlebarHeight - 2)
         return ZStack {
+            if let color = NSColor(hex: workspaceTitlebarBackgroundColorHex) {
+                Color(nsColor: color)
+                    .allowsHitTesting(false)
+            }
+
             // Enable window dragging from the titlebar strip without making the entire content
             // view draggable (which breaks drag gestures like tab reordering).
             WindowDragHandleView()
@@ -2164,11 +2170,22 @@ struct ContentView: View {
         .background(TitlebarDoubleClickMonitorView())
         .overlay(alignment: .bottom) {
             SidebarWidthReader(layout: sidebarLayout) { width in
-                WindowChromeBorder(
-                    orientation: .horizontal,
-                    refreshNotificationName: .ghosttyDefaultBackgroundDidChange,
-                    backgroundColorProvider: { GhosttyBackgroundTheme.currentColor() }
-                )
+                Group {
+                    if let borderColor = PaneChromeSettings.paneBorderColorHex().flatMap({ NSColor(hex: $0) }) {
+                        Rectangle()
+                            .fill(Color(nsColor: borderColor))
+                            .frame(height: 1)
+                    } else {
+                        WindowChromeBorder(
+                            orientation: .horizontal,
+                            refreshNotificationName: .ghosttyDefaultBackgroundDidChange,
+                            backgroundColorProvider: {
+                                NSColor(hex: workspaceTitlebarBackgroundColorHex)
+                                    ?? GhosttyBackgroundTheme.currentColor()
+                            }
+                        )
+                    }
+                }
                     .padding(.leading, sidebarState.isVisible ? width : 0)
             }
         }

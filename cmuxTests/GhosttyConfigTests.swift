@@ -1403,6 +1403,7 @@ final class WorkspaceChromeThemeTests: XCTestCase {
         let colors = Workspace.resolvedChromeColors(from: backgroundColor)
         XCTAssertEqual(colors.backgroundHex, "#FDF6E3")
         XCTAssertEqual(colors.tabBarBackgroundHex, "#FDF6E3")
+        XCTAssertEqual(colors.tabItemBackgroundHex, "#FDF6E3")
         XCTAssertEqual(colors.splitButtonBackdropHex, "#FDF6E3")
         XCTAssertEqual(colors.paneBackgroundHex, "#00000000")
         XCTAssertEqual(colors.borderHex, "#DED7C442")
@@ -1417,6 +1418,7 @@ final class WorkspaceChromeThemeTests: XCTestCase {
         let colors = Workspace.resolvedChromeColors(from: backgroundColor)
         XCTAssertEqual(colors.backgroundHex, "#272822")
         XCTAssertEqual(colors.tabBarBackgroundHex, "#272822")
+        XCTAssertEqual(colors.tabItemBackgroundHex, "#272822")
         XCTAssertEqual(colors.splitButtonBackdropHex, "#272822")
         XCTAssertEqual(colors.paneBackgroundHex, "#00000000")
         XCTAssertEqual(colors.borderHex, "#4F504A5B")
@@ -1434,6 +1436,7 @@ final class WorkspaceChromeThemeTests: XCTestCase {
         )
         XCTAssertEqual(colors.backgroundHex, "#272822")
         XCTAssertEqual(colors.tabBarBackgroundHex, "#00000000")
+        XCTAssertEqual(colors.tabItemBackgroundHex, "#272822")
         XCTAssertEqual(colors.splitButtonBackdropHex, "#00000000")
         XCTAssertEqual(colors.paneBackgroundHex, "#00000000")
         XCTAssertEqual(colors.borderHex, "#4F504A5B")
@@ -1471,6 +1474,24 @@ final class WorkspaceChromeThemeTests: XCTestCase {
         XCTAssertEqual(colors.splitButtonBackdropHex, "#272822")
         XCTAssertEqual(colors.paneBackgroundHex, "#00000000")
         XCTAssertEqual(colors.borderHex, "#33AAFF")
+    }
+
+    func testResolvedChromeColorsSeparateConfiguredTabRailFromGhosttyTabItemsAndPane() {
+        guard let backgroundColor = NSColor(hex: "#272822") else {
+            XCTFail("Expected valid test color")
+            return
+        }
+
+        let colors = Workspace.resolvedChromeColors(
+            from: backgroundColor,
+            sharesWindowBackdrop: true,
+            paneTabBarBackgroundColorHex: "#111315"
+        )
+        XCTAssertEqual(colors.backgroundHex, "#272822")
+        XCTAssertEqual(colors.tabBarBackgroundHex, "#111315")
+        XCTAssertEqual(colors.tabItemBackgroundHex, "#272822")
+        XCTAssertEqual(colors.splitButtonBackdropHex, "#111315")
+        XCTAssertEqual(colors.paneBackgroundHex, "#00000000")
     }
 }
 
@@ -1574,6 +1595,7 @@ final class WorkspaceChromeColorTests: XCTestCase {
 
         XCTAssertEqual(colors.backgroundHex, "#1122337F")
         XCTAssertEqual(colors.tabBarBackgroundHex, "#1122337F")
+        XCTAssertEqual(colors.tabItemBackgroundHex, "#1122337F")
         XCTAssertEqual(colors.splitButtonBackdropHex, "#1122337F")
         XCTAssertEqual(colors.paneBackgroundHex, "#00000000")
     }
@@ -1595,6 +1617,7 @@ final class WorkspaceChromeColorTests: XCTestCase {
 
         XCTAssertEqual(colors.backgroundHex, "#1122337F")
         XCTAssertEqual(colors.tabBarBackgroundHex, "#00000000")
+        XCTAssertEqual(colors.tabItemBackgroundHex, "#1122337F")
         XCTAssertEqual(colors.splitButtonBackdropHex, "#00000000")
         XCTAssertEqual(colors.paneBackgroundHex, "#00000000")
     }

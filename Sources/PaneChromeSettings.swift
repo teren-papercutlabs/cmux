@@ -3,6 +3,8 @@ import Foundation
 enum PaneChromeSettings {
     static let paneBorderColorKey = "paneBorderColor"
     static let activePaneBorderColorKey = "activePaneBorderColor"
+    static let workspaceTitlebarBackgroundColorKey = "workspaceTitlebarBackgroundColor"
+    static let paneTabBarBackgroundColorKey = "paneTabBarBackgroundColor"
     static let defaultColorHex = ""
     static let activeBorderLineWidth = 2.0
     static let didChangeNotification = Notification.Name("cmux.paneChromeSettingsDidChange")
@@ -13,6 +15,14 @@ enum PaneChromeSettings {
 
     static func activePaneBorderColorHex(defaults: UserDefaults = .standard) -> String? {
         normalizedColorHex(defaults.string(forKey: Self.activePaneBorderColorKey))
+    }
+
+    static func workspaceTitlebarBackgroundColorHex(defaults: UserDefaults = .standard) -> String? {
+        normalizedColorHex(defaults.string(forKey: Self.workspaceTitlebarBackgroundColorKey))
+    }
+
+    static func paneTabBarBackgroundColorHex(defaults: UserDefaults = .standard) -> String? {
+        normalizedColorHex(defaults.string(forKey: Self.paneTabBarBackgroundColorKey))
     }
 
     static func resolvedPaneBorderHex(configuredHex: String?, fallback: String) -> String {

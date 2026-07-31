@@ -106,5 +106,7 @@ struct SettingCatalogTests {
         for key in catalog.automation.all { #expect(key.id.hasPrefix("automation.")) }
         #expect(catalog.paneChrome.paneBorderColorHex.id == "paneBorderColor")
         #expect(catalog.paneChrome.activePaneBorderColorHex.id == "activePaneBorderColor")
+        #expect(catalog.paneChrome.workspaceTitlebarBackgroundColorHex.id == "workspaceTitlebarBackgroundColor")
+        #expect(catalog.paneChrome.paneTabBarBackgroundColorHex.id == "paneTabBarBackgroundColor")
     }
 }

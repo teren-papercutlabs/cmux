@@ -49,11 +49,15 @@ struct KeyboardShortcutModifierHoldHintsSettingsFileTests {
         let defaults = UserDefaults.standard
         let paneBorderKey = PaneChromeSettings.paneBorderColorKey
         let activePaneBorderKey = PaneChromeSettings.activePaneBorderColorKey
+        let workspaceTitlebarKey = PaneChromeSettings.workspaceTitlebarBackgroundColorKey
+        let paneTabBarKey = PaneChromeSettings.paneTabBarBackgroundColorKey
         #expect(paneBorderKey == "paneBorderColor")
         #expect(activePaneBorderKey == "activePaneBorderColor")
         try preservingDefaults(keys: [
             paneBorderKey,
             activePaneBorderKey,
+            workspaceTitlebarKey,
+            paneTabBarKey,
             settingsFileBackupsDefaultsKey,
             importedManagedDefaultsKey,
         ]) {
@@ -66,7 +70,9 @@ struct KeyboardShortcutModifierHoldHintsSettingsFileTests {
             try """
             {
               "paneBorderColor": "33aaff",
-              "activePaneBorderColor": null
+              "activePaneBorderColor": null,
+              "workspaceTitlebarBackgroundColor": "#111315",
+              "paneTabBarBackgroundColor": "#1c1e20"
             }
             """.write(to: settingsFileURL, atomically: true, encoding: .utf8)
 
@@ -79,6 +85,8 @@ struct KeyboardShortcutModifierHoldHintsSettingsFileTests {
 
             #expect(defaults.string(forKey: paneBorderKey) == "#33AAFF")
             #expect(defaults.object(forKey: activePaneBorderKey) == nil)
+            #expect(defaults.string(forKey: workspaceTitlebarKey) == "#111315")
+            #expect(defaults.string(forKey: paneTabBarKey) == "#1C1E20")
         }
     }
 
