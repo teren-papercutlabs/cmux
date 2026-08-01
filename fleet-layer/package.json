@@ -1,0 +1,19 @@
+{
+  "name": "@pcl/cmux-fleet-layer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PcL fleet cockpit sidecar for cmux",
+  "bin": {
+    "pcl-fleet": "bin/pcl-fleet"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "snapshot": "node src/cli.mjs snapshot --json",
+    "cockpit": "node src/cli.mjs cockpit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "GPL-3.0-only"
+}
