@@ -5698,7 +5698,7 @@ struct ContentView: View {
                     format: String(localized: "altitude.palette.more", defaultValue: "%lld more — tab to expand"),
                     Int64(remaining)
                 ),
-                subtitle: nil,
+                subtitle: "",
                 shortcutHint: "⇥",
                 kindLabel: nil,
                 sectionLabel: String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
