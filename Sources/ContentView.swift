@@ -55,15 +55,21 @@ struct PcLPrioritySwitcherConfiguration: Codable, Equatable {
     mutating func assign(role: Role, surfaceId: UUID) {
         switch role {
         case .lead:
+            let priorLead = leadSurfaceId
+            if understudySurfaceId == surfaceId {
+                understudySurfaceId = priorLead
+            }
             leadSurfaceId = surfaceId
-            if understudySurfaceId == surfaceId { understudySurfaceId = nil }
         case .understudy:
+            let priorUnderstudy = understudySurfaceId
+            if leadSurfaceId == surfaceId {
+                leadSurfaceId = priorUnderstudy
+            }
             understudySurfaceId = surfaceId
-            if leadSurfaceId == surfaceId { leadSurfaceId = nil }
         }
     }
 
-    enum Role { case lead, understudy }
+    enum Role: Equatable { case lead, understudy }
 }
 @MainActor
 private final class CommandPaletteOverlayContainerView: NSView {
@@ -2599,11 +2605,9 @@ struct ContentView: View {
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
 
-                contentAndSidebarLayout(appearance: appearance)
-
-                VStack {
-                    Spacer()
-                    HStack {
+                VStack(spacing: 0) {
+                    contentAndSidebarLayout(appearance: appearance)
+                    HStack(spacing: 0) {
                         Spacer(minLength: 0)
                         AltitudeNextUpStrip(
                             snapshot: altitudeCoordinator.snapshot,
@@ -2613,6 +2617,8 @@ struct ContentView: View {
                         )
                         .frame(maxWidth: 520)
                     }
+                    .frame(maxWidth: .infinity)
+                    .background(Color(nsColor: .windowBackgroundColor))
                 }
                 .allowsHitTesting(true)
                 .zIndex(80)
@@ -5507,7 +5513,7 @@ struct ContentView: View {
             )
         }
 
-        var entries: [CommandPaletteCommand] = []
+        var entries = commandPaletteAltitudeNeedsYouEntries(startingRank: 0)
         let estimatedCount = windowContexts.reduce(0) { partial, context in
             let workspaceCount = context.tabManager.tabs.count
             guard includeSurfaces else { return partial + workspaceCount }
@@ -5516,8 +5522,8 @@ struct ContentView: View {
             }
             return partial + workspaceCount + surfaceCount
         }
-        entries.reserveCapacity(estimatedCount)
-        var nextRank = 0
+        entries.reserveCapacity(entries.count + estimatedCount)
+        var nextRank = entries.count
 
         for context in windowContexts {
             let workspaces = commandPaletteOrderedSwitcherWorkspaces(for: context)
@@ -5788,17 +5794,31 @@ struct ContentView: View {
 
     private func altitudeGo(_ item: AltitudeNextUpItem) {
         let candidateSessionIDs = Set([item.sessionId, item.jumpSessionId].compactMap { $0 })
+        let processSnapshot = CmuxTopProcessSnapshot.capture(includeProcessDetails: false, includeCMUXScope: true)
         for context in commandPaletteSwitcherWindowContexts() {
             for workspace in context.tabManager.tabs {
-                for panelID in workspace.panels.keys {
-                    guard let binding = workspace.surfaceResumeBinding(panelId: panelID) else { continue }
-                    let matchesSession = binding.checkpointId.map(candidateSessionIDs.contains) == true
-                    let matchesTmux = item.tmuxSession.map { tmux in
-                        binding.name == tmux
-                            || binding.command.contains(tmux)
-                            || binding.environment?.values.contains(tmux) == true
+                for (panelID, panel) in workspace.panels {
+                    let binding = workspace.surfaceResumeBinding(panelId: panelID)
+                    let matchesBindingSession = binding?.checkpointId.map(candidateSessionIDs.contains) == true
+                    let matchesBindingTmux = item.tmuxSession.map { tmux in
+                        binding?.name == tmux
+                            || binding?.command.contains(tmux) == true
+                            || binding?.environment?.values.contains(tmux) == true
                     } == true
-                    guard matchesSession || matchesTmux else { continue }
+                    let processArguments = processSnapshot.pids(forCMUXSurfaceID: panelID)
+                        .sorted()
+                        .compactMap { TerminalSSHSessionDetector.commandLineArguments(forPID: Int32($0)) }
+                        .flatMap { $0 }
+                    let evidence = AltitudeSurfaceEvidence(
+                        title: workspace.panelTitle(panelId: panelID) ?? panel.displayTitle,
+                        processArguments: processArguments
+                    )
+                    let matchesOfficeSurface = AltitudeSurfaceMatcher.matches(
+                        sessionIDs: candidateSessionIDs,
+                        tmuxSession: item.tmuxSession,
+                        evidence: evidence
+                    )
+                    guard matchesBindingSession || matchesBindingTmux || matchesOfficeSurface else { continue }
                     focusCommandPaletteSwitcherSurfaceTarget(
                         windowId: context.windowId,
                         tabManager: context.tabManager,
@@ -8579,9 +8599,7 @@ struct ContentView: View {
             NSSound.beep()
             return
         }
-        var configuration = PcLPrioritySwitcherConfiguration.load()
-        configuration.assign(role: role, surfaceId: panelContext.panelId)
-        configuration.save()
+        panelContext.workspace.anointAltitudeSeat(role, panelID: panelContext.panelId)
     }
 
     private func setFocusedPrioritySwitcherGroup(_ group: String?) {

@@ -241152,6 +241152,57 @@
           }
         }
       }
+    },
+    "altitude.seat.reanoint.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make this %@?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これを%@にしますか？"
+          }
+        }
+      }
+    },
+    "altitude.seat.reanoint.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This pane is reserved. Re-anointing swaps the seat explicitly."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このペインは予約されています。再任命すると席が明示的に入れ替わります。"
+          }
+        }
+      }
+    },
+    "altitude.seat.reanoint.action": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make this %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これを%@にする"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
