@@ -12783,6 +12783,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return true
     }
 
+    private func altitudeHasPrioritySurface(_ priority: String, event: NSEvent) -> Bool {
+        let configuration = PcLPrioritySwitcherConfiguration.load()
+        let surfaceID = priority == "1B"
+            ? configuration.understudySurfaceId
+            : configuration.leadSurfaceId
+        guard let surfaceID else { return false }
+        let routedManager = preferredMainWindowContextForShortcutRouting(event: event)?.tabManager
+        let managers = [routedManager, tabManager].compactMap { $0 }
+        return managers.contains { manager in
+            manager.tabs.contains { $0.panels[surfaceID] != nil }
+        }
+    }
+
     private func handleCustomShortcut(event: NSEvent) -> Bool {
         guard event.type == .keyDown else {
             clearConfiguredShortcutChordState()
@@ -13019,7 +13032,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if commandPaletteInteractiveInTargetWindow,
            event.keyCode == 48,
            normalizedFlags.isEmpty,
-           let paletteWindow = commandPaletteShortcutWindow {
+           let paletteWindow = commandPaletteShortcutWindow,
+           let windowID = mainWindowId(for: paletteWindow) {
+            let selection = commandPaletteSelectionIndex(windowId: windowID)
+            let results = commandPaletteSnapshot(windowId: windowID).results
+            guard results.indices.contains(selection),
+                  results[selection].commandId == "altitude.needs-you.expand" else {
+                return false
+            }
             NotificationCenter.default.post(name: .altitudeExpandNeedsYou, object: paletteWindow)
             return true
         }
@@ -13149,16 +13169,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return true
         }
 
-        // Altitude navigation is presentation-only. Explicit Option chords are
-        // global; bare/Cmd Return never displace a terminal or text editor's input.
+        // Altitude navigation is presentation-only. Its direct chords never
+        // displace input owned by a terminal, editor, browser, or AppKit control.
+        // Cmd+K itself remains on the existing configurable switcher action above.
         if !commandPaletteEffectiveInTargetWindow {
             let targetWindow = resolvedShortcutEventWindow(event) ?? event.window ?? shortcutRoutingActiveWindow
             let isReturn = event.keyCode == 36 || event.keyCode == 76
-            if hasCommand, !hasOption, !hasControl, chars.lowercased() == "k" {
-                requestCommandPaletteSwitcher(preferredWindow: targetWindow, source: "shortcut.altitudePalette")
-                return true
-            }
-            if hasOption, !hasCommand, !hasControl {
+            let responder = targetWindow?.firstResponder
+            let isTyping = responder is NSTextView
+                || responder is NSTextField
+                || responder.map { cmuxOwningGhosttyView(for: $0) != nil } == true
+                || responder.map { NSWindow.cmuxOwningWebView(for: $0) != nil } == true
+            if hasOption, !hasCommand, !hasControl, !isTyping {
                 let notification: Notification.Name? = isReturn
                     ? .altitudeGoTop
                     : chars == "2" ? .altitudeGoSecond
@@ -13170,14 +13192,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 }
             }
             if isReturn, !hasOption, !hasControl {
-                let responder = targetWindow?.firstResponder
-                let isTyping = responder is NSTextView
-                    || responder is NSTextField
-                    || responder.map { cmuxOwningGhosttyView(for: $0) != nil } == true
-                    || responder.map { NSWindow.cmuxOwningWebView(for: $0) != nil } == true
-                if !isTyping {
+                let appKitControlOwnsReturn = responder is NSControl
+                    || responder is NSTableView
+                    || responder is NSOutlineView
+                let priority = hasCommand ? "1B" : "1A"
+                if !isTyping,
+                   !appKitControlOwnsReturn,
+                   altitudeHasPrioritySurface(priority, event: event) {
                     NotificationCenter.default.post(
-                        name: hasCommand ? .altitudeGoPriority1B : .altitudeGoPriority1A,
+                        name: priority == "1B" ? .altitudeGoPriority1B : .altitudeGoPriority1A,
                         object: targetWindow
                     )
                     return true

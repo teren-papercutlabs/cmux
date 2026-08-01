@@ -901,6 +901,7 @@ struct ContentView: View {
     )
     @AppStorage(AltitudeConfiguration.flatPaletteKey) private var altitudeFlatPalette = false
     @State private var altitudeNeedsYouExpanded = false
+    @State private var altitudeNavigationError: String?
     @State private var backgroundWorkspacePrimeCoordinator = BackgroundWorkspacePrimeCoordinator()
     @State private var workspacePresentationModeRuntimeCache = WorkspacePresentationModeRuntimeCache()
     @State private var fileExplorerWidth: CGFloat = 220
@@ -2607,6 +2608,7 @@ struct ContentView: View {
                         AltitudeNextUpStrip(
                             snapshot: altitudeCoordinator.snapshot,
                             configuration: AltitudeConfiguration(),
+                            errorMessage: altitudeNavigationError ?? altitudeCoordinator.lastError,
                             onGo: altitudeGo
                         )
                         .frame(maxWidth: 520)
@@ -5751,7 +5753,10 @@ struct ContentView: View {
     }
 
     private func altitudeGo(at index: Int) {
-        guard altitudeCoordinator.snapshot.items.indices.contains(index) else { return }
+        guard altitudeCoordinator.snapshot.items.indices.contains(index) else {
+            altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
+            return
+        }
         altitudeGo(altitudeCoordinator.snapshot.items[index])
     }
 
@@ -5759,7 +5764,10 @@ struct ContentView: View {
         guard let item = altitudeCoordinator.snapshot.items.first(where: { $0.priority == priority }) else {
             let configuration = PcLPrioritySwitcherConfiguration.load()
             let surfaceID = priority == "1A" ? configuration.leadSurfaceId : configuration.understudySurfaceId
-            guard let surfaceID else { return }
+            guard let surfaceID else {
+                altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
+                return
+            }
             for context in commandPaletteSwitcherWindowContexts() {
                 for workspace in context.tabManager.tabs where workspace.panels[surfaceID] != nil {
                     focusCommandPaletteSwitcherSurfaceTarget(
@@ -5768,9 +5776,11 @@ struct ContentView: View {
                         workspaceId: workspace.id,
                         panelId: surfaceID
                     )
+                    altitudeNavigationError = nil
                     return
                 }
             }
+            altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
             return
         }
         altitudeGo(item)
@@ -5781,18 +5791,26 @@ struct ContentView: View {
         for context in commandPaletteSwitcherWindowContexts() {
             for workspace in context.tabManager.tabs {
                 for panelID in workspace.panels.keys {
-                    guard let checkpointID = workspace.surfaceResumeBinding(panelId: panelID)?.checkpointId,
-                          candidateSessionIDs.contains(checkpointID) else { continue }
+                    guard let binding = workspace.surfaceResumeBinding(panelId: panelID) else { continue }
+                    let matchesSession = binding.checkpointId.map(candidateSessionIDs.contains) == true
+                    let matchesTmux = item.tmuxSession.map { tmux in
+                        binding.name == tmux
+                            || binding.command.contains(tmux)
+                            || binding.environment?.values.contains(tmux) == true
+                    } == true
+                    guard matchesSession || matchesTmux else { continue }
                     focusCommandPaletteSwitcherSurfaceTarget(
                         windowId: context.windowId,
                         tabManager: context.tabManager,
                         workspaceId: workspace.id,
                         panelId: panelID
                     )
+                    altitudeNavigationError = nil
                     return
                 }
             }
         }
+        altitudeNavigationError = String(localized: "altitude.navigation.sessionNotFound", defaultValue: "Altitude could not locate that session in this window")
     }
 
     private func altitudeWaitLabel(_ seconds: Int) -> String {

@@ -128,3 +128,18 @@ test('classifier provider slot can sharpen only uncertain records', () => {
   assert.equal(result.items.find((item) => item.agentId === 'ambiguous').classification, 'actionable');
   assert.equal(result.items.find((item) => item.agentId === 'specific').why.label, 'needs you');
 });
+
+test('unknown waiting timestamps sort last instead of masquerading as oldest', () => {
+  const result = resolveNextUp({
+    schemaVersion: 1,
+    collectedAt,
+    counts: { total: 2, needsYou: 2, running: 0, idle: 0 },
+    agents: [
+      agent({ id: 'unknown', createdAt: 'not-a-date', jumpSessionId: 'unknown-session' }),
+      agent({ id: 'known', createdAt: '2026-08-01T05:59:00.000Z', jumpSessionId: 'known-session' }),
+    ],
+  }, { now: new Date(collectedAt) });
+
+  assert.deepEqual(result.items.map((item) => item.agentId), ['known', 'unknown']);
+  assert.equal(result.items[1].waitSeconds, 0);
+});

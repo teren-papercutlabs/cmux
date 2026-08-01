@@ -240762,6 +240762,125 @@
         }
       }
     },
+    "altitude.error.fleetUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude fleet projection is unavailable"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude のフリート表示を利用できません"
+          }
+        }
+      }
+    },
+    "altitude.error.nodeMissing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude cannot find the Node runtime used by fleet-layer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fleet-layer が使用する Node ランタイムが見つかりません"
+          }
+        }
+      }
+    },
+    "altitude.error.refreshFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude fleet refresh failed"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude のフリート更新に失敗しました"
+          }
+        }
+      }
+    },
+    "altitude.error.timedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude fleet refresh timed out"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude のフリート更新がタイムアウトしました"
+          }
+        }
+      }
+    },
+    "altitude.navigation.noTarget": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That Altitude target is no longer available"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その Altitude の移動先は利用できなくなりました"
+          }
+        }
+      }
+    },
+    "altitude.navigation.sessionNotFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altitude could not locate that session in this window"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このウインドウ内に対象のセッションが見つかりません"
+          }
+        }
+      }
+    },
+    "altitude.strip.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "queue unavailable"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キューを利用できません"
+          }
+        }
+      }
+    },
     "altitude.strip.empty": {
       "extractionState": "manual",
       "localizations": {

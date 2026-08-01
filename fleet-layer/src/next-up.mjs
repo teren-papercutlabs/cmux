@@ -4,7 +4,7 @@ function text(value) {
 
 function dateMs(value) {
   const parsed = Date.parse(value ?? '');
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function priorityRank(value) {
@@ -44,7 +44,7 @@ export function resolveNextUp(snapshot, options = {}) {
       const machineWhy = specificMachineWhy(agent);
       const why = machineWhy ?? whyProvider.provide({ agent, snapshot });
       const createdAtMs = dateMs(agent.attention.createdAt);
-      const waitSeconds = createdAtMs > 0
+      const waitSeconds = createdAtMs !== null
         ? Math.max(0, Math.floor((nowMs - createdAtMs) / 1000))
         : 0;
       return {
@@ -65,7 +65,8 @@ export function resolveNextUp(snapshot, options = {}) {
 
   items.sort((left, right) =>
     priorityRank(left.priority) - priorityRank(right.priority)
-    || dateMs(left.waitingSince) - dateMs(right.waitingSince)
+    || (dateMs(left.waitingSince) ?? Number.POSITIVE_INFINITY)
+      - (dateMs(right.waitingSince) ?? Number.POSITIVE_INFINITY)
     || left.agentId.localeCompare(right.agentId));
 
   return {

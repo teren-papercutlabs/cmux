@@ -3,13 +3,20 @@ import SwiftUI
 struct AltitudeNextUpStrip: View {
     let snapshot: AltitudeNextUpSnapshot
     let configuration: AltitudeConfiguration
+    let errorMessage: String?
     let onGo: (AltitudeNextUpItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
+                    .cmuxFont(size: 10, weight: .medium)
+                    .foregroundStyle(Color.orange)
+                    .lineLimit(2)
+            }
             presenceLines
             HStack(spacing: 6) {
-                if snapshot.items.isEmpty {
+                if snapshot.items.isEmpty, errorMessage == nil {
                     Text(
                         String(
                             format: String(localized: "altitude.strip.empty", defaultValue: "nothing waiting · %lld processing"),
@@ -18,6 +25,12 @@ struct AltitudeNextUpStrip: View {
                     )
                         .cmuxFont(size: 11, weight: .medium)
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 7)
+                } else if snapshot.items.isEmpty {
+                    Text(String(localized: "altitude.strip.unavailable", defaultValue: "queue unavailable"))
+                        .cmuxFont(size: 11, weight: .medium)
+                        .foregroundStyle(Color.orange)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 7)
                 } else {
