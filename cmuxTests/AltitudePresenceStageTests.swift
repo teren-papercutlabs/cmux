@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -221,34 +222,52 @@ struct AltitudeNextUpFloatPresentationTests {
         #expect(cards.map(\.shortcutHint) == ["⌥↩", "⌥2", "⌥3"])
     }
 
-    @Test("the third pane is the stable anchor with a last-pane fallback")
+    @Test("the third terminal pane is the stable anchor with a nearest-terminal fallback")
     func targetPaneIndex() {
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 0) == nil)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 1) == 0)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 2) == 1)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 3) == 2)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 5) == 2)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: []) == nil)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0]) == 0)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0, 1, 2]) == 2)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0, 1, 3]) == 1)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [3, 4]) == 3)
     }
 
-    @Test("only the card stack captures clicks inside the target pane")
-    func interactiveRectStaysBottomTrailing() throws {
-        let target = CGRect(x: 800, y: 40, width: 500, height: 700)
-        let rect = try #require(
-            AltitudeNextUpFloatPresentation.interactiveRect(
-                targetRect: target,
-                cardCount: 3,
-                includesError: false
-            )
-        )
+    @Test("card width includes its padding and clamps to a narrow pane")
+    func cardWidthClampsToPane() {
+        #expect(AltitudeNextUpFloatPresentation.preferredFloatWidth == 468)
+        #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 500) == 468)
+        #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 500) == 420)
+        #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 300) == 300)
+        #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 300) == 252)
+    }
+}
 
-        #expect(rect.maxX == target.maxX)
-        #expect(rect.maxY == target.maxY)
-        #expect(rect.minX >= target.minX)
-        #expect(rect.minY > target.minY)
-        #expect(AltitudeNextUpFloatPresentation.interactiveRect(
-            targetRect: target,
-            cardCount: 0,
-            includesError: false
-        ) == nil)
+@MainActor
+@Suite("Altitude window overlay interaction")
+struct AltitudeWindowOverlayInteractionTests {
+    @Test("the flipped container only captures the measured card frame")
+    func measuredHitRegion() {
+        let container = PassthroughWindowOverlayContainerView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 800))
+        container.interactiveRect = CGRect(x: 532, y: 540, width: 468, height: 200)
+
+        #expect(container.isFlipped)
+        #expect(container.hitTest(CGPoint(x: 700, y: 600)) === container)
+        #expect(container.hitTest(CGPoint(x: 700, y: 100)) == nil)
+    }
+
+    @Test("the altitude container is promoted above terminal portal hosts")
+    func overlayPromotesAbovePortalHost() throws {
+        let parent = NSView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 800))
+        let reference = NSView(frame: parent.bounds)
+        let overlay = PassthroughWindowOverlayContainerView(frame: parent.bounds)
+        let portal = WindowTerminalHostView(frame: parent.bounds)
+        parent.addSubview(reference)
+        parent.addSubview(overlay, positioned: .above, relativeTo: reference)
+        parent.addSubview(portal, positioned: .above, relativeTo: reference)
+
+        WindowTmuxWorkspacePaneOverlayController.promoteAbovePortalHosts(containerView: overlay, in: parent)
+
+        let overlayIndex = try #require(parent.subviews.firstIndex(of: overlay))
+        let portalIndex = try #require(parent.subviews.firstIndex(of: portal))
+        #expect(overlayIndex > portalIndex)
     }
 }

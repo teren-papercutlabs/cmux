@@ -1151,15 +1151,19 @@ struct ContentView: View {
         }
 
         let altitudeTargetRect: CGRect?
-        if shouldShowAltitudeNextUp,
-           let targetIndex = AltitudeNextUpFloatPresentation.targetPaneIndex(
-               paneCount: workspace.bonsplitController.allPaneIds.count
-           ) {
-            let paneId = workspace.bonsplitController.allPaneIds[targetIndex]
-            let panel = workspace.bonsplitController.selectedTab(inPane: paneId)
-                .flatMap { workspace.panelIdFromSurfaceId($0.id) }
-                .flatMap { workspace.panels[$0] }
-            if let panel = panel as? TerminalPanel {
+        if shouldShowAltitudeNextUp {
+            let paneIds = workspace.bonsplitController.allPaneIds
+            let terminalPanelsByIndex: [(Int, PaneID, TerminalPanel)] = paneIds.enumerated().compactMap { index, paneId in
+                let panel = workspace.bonsplitController.selectedTab(inPane: paneId)
+                    .flatMap { workspace.panelIdFromSurfaceId($0.id) }
+                    .flatMap { workspace.panels[$0] }
+                guard let terminalPanel = panel as? TerminalPanel else { return nil }
+                return (index, paneId, terminalPanel)
+            }
+            if let targetIndex = AltitudeNextUpFloatPresentation.targetPaneIndex(
+                terminalPaneIndices: terminalPanelsByIndex.map(\.0)
+            ),
+            let (_, paneId, panel) = terminalPanelsByIndex.first(where: { $0.0 == targetIndex }) {
                 let paneRect = WorkspaceContentView.tmuxWorkspacePaneWindowOverlayRect(
                     layoutSnapshot: layoutSnapshot,
                     paneId: paneId
@@ -1213,7 +1217,6 @@ struct ContentView: View {
             for: window,
             createIfNeeded: tmuxOverlayState != nil
         )
-        controller?.setAltitudeGoAction(altitudeGo)
         controller?.update(state: tmuxOverlayState)
     }
 

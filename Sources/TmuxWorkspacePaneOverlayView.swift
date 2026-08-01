@@ -13,6 +13,7 @@ struct TmuxWorkspacePaneOverlayView: View {
     let altitudeErrorMessage: String?
     let altitudeTargetRect: CGRect?
     let onAltitudeGo: (AltitudeNextUpItem) -> Void
+    let onAltitudeFrameChange: (CGRect?) -> Void
     @State private var completedFlashStartedAt: Date?
 
     var body: some View {
@@ -26,8 +27,17 @@ struct TmuxWorkspacePaneOverlayView: View {
                 AltitudeNextUpFloat(
                     snapshot: altitudeSnapshot,
                     errorMessage: altitudeErrorMessage,
+                    availableWidth: altitudeTargetRect.width,
                     onGo: onAltitudeGo
                 )
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: AltitudeNextUpFramePreferenceKey.self,
+                            value: proxy.frame(in: .named(AltitudeNextUpFramePreferenceKey.coordinateSpace))
+                        )
+                    }
+                }
                 .frame(
                     width: altitudeTargetRect.width,
                     height: altitudeTargetRect.height,
@@ -37,6 +47,10 @@ struct TmuxWorkspacePaneOverlayView: View {
             }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .coordinateSpace(name: AltitudeNextUpFramePreferenceKey.coordinateSpace)
+            .onPreferenceChange(AltitudeNextUpFramePreferenceKey.self) { frame in
+                onAltitudeFrameChange(frame)
+            }
     }
 
     @ViewBuilder
@@ -162,6 +176,15 @@ struct TmuxWorkspacePaneOverlayView: View {
             roundedRect: PanelOverlayRingMetrics.pathRect(in: rect),
             cornerRadius: PanelOverlayRingMetrics.cornerRadius
         )
+    }
+}
+
+private struct AltitudeNextUpFramePreferenceKey: PreferenceKey {
+    static let coordinateSpace = "cmux.altitude.next-up.overlay"
+    static var defaultValue: CGRect?
+
+    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+        value = nextValue() ?? value
     }
 }
 

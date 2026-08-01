@@ -14,9 +14,12 @@ enum AltitudeNextUpFloatPresentation {
     static let anchor: Alignment = .bottomTrailing
     static let cardWidth: CGFloat = 420
     static let edgeInset: CGFloat = 12
-    static let estimatedCardHeight: CGFloat = 94
     static let cardSpacing: CGFloat = 8
-    static let estimatedErrorHeight: CGFloat = 32
+    static let cardHorizontalPadding: CGFloat = 12
+
+    static var preferredFloatWidth: CGFloat {
+        cardWidth + edgeInset * 2 + cardHorizontalPadding * 2
+    }
 
     static func shouldRender(snapshot: AltitudeNextUpSnapshot) -> Bool {
         !snapshot.items.isEmpty
@@ -32,36 +35,23 @@ enum AltitudeNextUpFloatPresentation {
         }
     }
 
-    static func targetPaneIndex(paneCount: Int) -> Int? {
-        guard paneCount > 0 else { return nil }
-        return min(targetPaneOffset, paneCount - 1)
+    static func targetPaneIndex(terminalPaneIndices: [Int]) -> Int? {
+        terminalPaneIndices.last(where: { $0 <= targetPaneOffset }) ?? terminalPaneIndices.first
     }
 
-    static func interactiveRect(
-        targetRect: CGRect?,
-        cardCount: Int,
-        includesError: Bool
-    ) -> CGRect? {
-        guard let targetRect, cardCount > 0 else { return nil }
-        let width = min(targetRect.width, cardWidth + edgeInset * 2)
-        let cardStackHeight = CGFloat(cardCount) * estimatedCardHeight
-            + CGFloat(max(0, cardCount - 1)) * cardSpacing
-        let height = min(
-            targetRect.height,
-            cardStackHeight + edgeInset * 2 + (includesError ? estimatedErrorHeight : 0)
-        )
-        return CGRect(
-            x: targetRect.maxX - width,
-            y: targetRect.maxY - height,
-            width: width,
-            height: height
-        )
+    static func floatWidth(availableWidth: CGFloat) -> CGFloat {
+        min(max(0, availableWidth), preferredFloatWidth)
+    }
+
+    static func cardContentWidth(availableWidth: CGFloat) -> CGFloat {
+        max(0, floatWidth(availableWidth: availableWidth) - edgeInset * 2 - cardHorizontalPadding * 2)
     }
 }
 
 struct AltitudeNextUpFloat: View {
     let snapshot: AltitudeNextUpSnapshot
     let errorMessage: String?
+    let availableWidth: CGFloat
     let onGo: (AltitudeNextUpItem) -> Void
 
     var body: some View {
@@ -73,7 +63,10 @@ struct AltitudeNextUpFloat: View {
                         .cmuxFont(size: 11, weight: .medium)
                         .foregroundStyle(Color.orange)
                         .lineLimit(2)
-                        .frame(width: AltitudeNextUpFloatPresentation.cardWidth, alignment: .leading)
+                        .frame(
+                            width: AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: availableWidth),
+                            alignment: .leading
+                        )
                 }
 
                 ForEach(cards) { card in
@@ -93,6 +86,7 @@ struct AltitudeNextUpFloat: View {
                 }
             }
             .padding(AltitudeNextUpFloatPresentation.edgeInset)
+            .frame(width: AltitudeNextUpFloatPresentation.floatWidth(availableWidth: availableWidth))
         }
     }
 
@@ -135,8 +129,11 @@ struct AltitudeNextUpFloat: View {
                 .cmuxFont(size: 10, weight: .medium)
                 .foregroundStyle(.tertiary)
         }
-        .frame(width: AltitudeNextUpFloatPresentation.cardWidth, alignment: .leading)
-        .padding(.horizontal, 12)
+        .frame(
+            width: AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: availableWidth),
+            alignment: .leading
+        )
+        .padding(.horizontal, AltitudeNextUpFloatPresentation.cardHorizontalPadding)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {

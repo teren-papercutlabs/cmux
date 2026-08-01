@@ -44,7 +44,8 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 altitudeSnapshot: nil,
                 altitudeErrorMessage: nil,
                 altitudeTargetRect: nil,
-                onAltitudeGo: { _ in }
+                onAltitudeGo: { _ in },
+                onAltitudeFrameChange: { _ in }
             )
         )
         super.init()
@@ -89,7 +90,21 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
             installedReferenceView = target.reference
         }
 
+        Self.promoteAbovePortalHosts(containerView: containerView, in: target.container)
+
         return true
+    }
+
+    static func promoteAbovePortalHosts(containerView: NSView, in container: NSView) {
+        guard containerView.superview === container else { return }
+        let portalHosts = container.subviews.compactMap { $0 as? WindowTerminalHostView }
+        guard let topmostPortalHost = portalHosts.max(by: {
+            (container.subviews.firstIndex(of: $0) ?? -1) < (container.subviews.firstIndex(of: $1) ?? -1)
+        }),
+        let overlayIndex = container.subviews.firstIndex(of: containerView),
+        let hostIndex = container.subviews.firstIndex(of: topmostPortalHost),
+        overlayIndex <= hostIndex else { return }
+        container.addSubview(containerView, positioned: .above, relativeTo: topmostPortalHost)
     }
 
     func update(state: TmuxWorkspacePaneOverlayRenderState?) {
@@ -115,13 +130,12 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 altitudeSnapshot: state.altitudeSnapshot,
                 altitudeErrorMessage: state.altitudeErrorMessage,
                 altitudeTargetRect: state.altitudeTargetRect,
-                onAltitudeGo: onAltitudeGo
+                onAltitudeGo: { [weak self] item in self?.handleAltitudeGo(item) },
+                onAltitudeFrameChange: { [weak self] frame in
+                    self?.containerView.interactiveRect = frame.flatMap { $0.isEmpty ? nil : $0 }
+                }
             )
-            containerView.interactiveRect = AltitudeNextUpFloatPresentation.interactiveRect(
-                targetRect: state.altitudeTargetRect,
-                cardCount: state.altitudeSnapshot.map { AltitudeNextUpFloatPresentation.cards(snapshot: $0).count } ?? 0,
-                includesError: state.altitudeErrorMessage != nil
-            )
+            containerView.interactiveRect = nil
             containerView.alphaValue = 1
             containerView.isHidden = false
         } else {
@@ -137,7 +151,8 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 altitudeSnapshot: nil,
                 altitudeErrorMessage: nil,
                 altitudeTargetRect: nil,
-                onAltitudeGo: { _ in }
+                onAltitudeGo: { _ in },
+                onAltitudeFrameChange: { _ in }
             )
             containerView.interactiveRect = nil
             containerView.alphaValue = 0
@@ -145,10 +160,11 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
         }
     }
 
-    private var onAltitudeGo: (AltitudeNextUpItem) -> Void = { _ in }
-
-    func setAltitudeGoAction(_ action: @escaping (AltitudeNextUpItem) -> Void) {
-        onAltitudeGo = action
+    private func handleAltitudeGo(_ item: AltitudeNextUpItem) {
+        guard let index = lastRenderState?.altitudeSnapshot?.items.firstIndex(where: { $0.id == item.id }),
+              index < AltitudeNextUpFloatPresentation.maximumCardCount else { return }
+        let names: [Notification.Name] = [.altitudeGoTop, .altitudeGoSecond, .altitudeGoThird]
+        NotificationCenter.default.post(name: names[index], object: window)
     }
 
     func scheduleGeometryRefresh(stateProvider: @MainActor @escaping () -> TmuxWorkspacePaneOverlayRenderState?) {
