@@ -17386,7 +17386,7 @@ private extension NSWindow {
         return result
     }
 
-    private static func cmuxOwningWebView(for responder: NSResponder) -> CmuxWebView? {
+    fileprivate static func cmuxOwningWebView(for responder: NSResponder) -> CmuxWebView? {
         if let webView = responder as? CmuxWebView {
             return webView
         }
