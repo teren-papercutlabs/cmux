@@ -136,6 +136,8 @@
 		A17D01070000000000000000 /* AltitudeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02070000000000000000 /* AltitudeNotifications.swift */; };
 		A17D01080000000000000000 /* AltitudePresenceStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02080000000000000000 /* AltitudePresenceStage.swift */; };
 		A17D01090000000000000000 /* AltitudePresenceStageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02090000000000000000 /* AltitudePresenceStageTests.swift */; };
+		A17D010A0000000000000000 /* AltitudeSeatMovePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D020A0000000000000000 /* AltitudeSeatMovePolicy.swift */; };
+		A17D0B090000000000000000 /* AltitudeSurfaceMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D0B0A0000000000000000 /* AltitudeSurfaceMatcher.swift */; };
 		F4350A110000000000000001 /* AppBundleIconPersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4350A130000000000000001 /* AppBundleIconPersistencePolicy.swift */; };
 		F4350A120000000000000001 /* AppBundleIconPersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4350A130000000000000001 /* AppBundleIconPersistencePolicy.swift */; };
 		804100000000000000000009 /* AppDelegate+AdjacentNavigationShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80410000000000000000000A /* AppDelegate+AdjacentNavigationShortcut.swift */; };
@@ -2273,6 +2275,8 @@ C0DE71B10000000000000001 /* AppDelegate+AgentChatNotifications.swift in Sources 
 		A17D02070000000000000000 /* AltitudeNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNotifications.swift; sourceTree = "<group>"; };
 		A17D02080000000000000000 /* AltitudePresenceStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudePresenceStage.swift; sourceTree = "<group>"; };
 		A17D02090000000000000000 /* AltitudePresenceStageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudePresenceStageTests.swift; sourceTree = "<group>"; };
+		A17D020A0000000000000000 /* AltitudeSeatMovePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeSeatMovePolicy.swift; sourceTree = "<group>"; };
+		A17D0B0A0000000000000000 /* AltitudeSurfaceMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeSurfaceMatcher.swift; sourceTree = "<group>"; };
 		F4350A130000000000000001 /* AppBundleIconPersistencePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/AppBundleIconPersistencePolicy.swift; sourceTree = "<group>"; };
 		80410000000000000000000A /* AppDelegate+AdjacentNavigationShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+AdjacentNavigationShortcut.swift"; sourceTree = "<group>"; };
 		C0DE45AC0000000000000002 /* AppDelegate+AgentChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+AgentChat.swift"; sourceTree = "<group>"; };
@@ -4452,6 +4456,8 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 				A17D02060000000000000000 /* AltitudeNextUpStrip.swift */,
 				A17D02070000000000000000 /* AltitudeNotifications.swift */,
 				A17D02080000000000000000 /* AltitudePresenceStage.swift */,
+				A17D0B0A0000000000000000 /* AltitudeSurfaceMatcher.swift */,
+				A17D020A0000000000000000 /* AltitudeSeatMovePolicy.swift */,
 				A11CE0030000000000000001 /* AboutLicenseContent.swift */,
 				3023B1003023B1003023B100 /* ConfigSource.swift */,
 				3023B1013023B1013023B101 /* ConfigSettingsView.swift */,
@@ -6889,6 +6895,8 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 				A17D01060000000000000000 /* AltitudeNextUpStrip.swift in Sources */,
 				A17D01070000000000000000 /* AltitudeNotifications.swift in Sources */,
 				A17D01080000000000000000 /* AltitudePresenceStage.swift in Sources */,
+				A17D010A0000000000000000 /* AltitudeSeatMovePolicy.swift in Sources */,
+				A17D0B090000000000000000 /* AltitudeSurfaceMatcher.swift in Sources */,
 				F4350A110000000000000001 /* AppBundleIconPersistencePolicy.swift in Sources */,
 				804100000000000000000009 /* AppDelegate+AdjacentNavigationShortcut.swift in Sources */,
 				C0DE45AC0000000000000001 /* AppDelegate+AgentChat.swift in Sources */,

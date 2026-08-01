@@ -51,14 +51,17 @@ struct AltitudeNextUpStrip: View {
                     }
                 }
             }
-            .padding(5)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(7)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(Color.white.opacity(0.09), lineWidth: 1)
             }
         }
-        .padding(10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(minHeight: 62)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     @ViewBuilder
