@@ -13174,7 +13174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 let isTyping = responder is NSTextView
                     || responder is NSTextField
                     || responder.map { cmuxOwningGhosttyView(for: $0) != nil } == true
-                    || responder.map { Self.cmuxOwningWebView(for: $0) != nil } == true
+                    || responder.map { NSWindow.cmuxOwningWebView(for: $0) != nil } == true
                 if !isTyping {
                     NotificationCenter.default.post(
                         name: hasCommand ? .altitudeGoPriority1B : .altitudeGoPriority1A,
