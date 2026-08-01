@@ -45,11 +45,13 @@ struct AltitudeOfficeSurfaceMatcherTests {
         let sessionID = "c5017c5d-e034-43da-8834-eb21479f8256"
         let evidence = AltitudeSurfaceEvidence(
             title: "[mosh] xianxing-altitude-third-pane",
-            processArguments: [
-                "node",
-                "/Users/teren/pcl-client/office/dist/index.js",
-                "a",
-                sessionID,
+            processArgumentVectors: [
+                [
+                    "node",
+                    "/Users/teren/pcl-client/office/dist/index.js",
+                    "a",
+                    sessionID,
+                ],
             ]
         )
 
@@ -60,7 +62,7 @@ struct AltitudeOfficeSurfaceMatcherTests {
     func moshTitleMatches() {
         let evidence = AltitudeSurfaceEvidence(
             title: "[mosh] xianxing-altitude-third-pane",
-            processArguments: []
+            processArgumentVectors: []
         )
 
         #expect(AltitudeSurfaceMatcher.matches(
@@ -74,7 +76,8 @@ struct AltitudeOfficeSurfaceMatcherTests {
     func partialIdentifierDoesNotMatch() {
         let evidence = AltitudeSurfaceEvidence(
             title: "[mosh] xianxing-altitude-third-pane-old",
-            processArguments: ["node", "office/dist/index.js", "a", "c5017c5d-old"]
+            bindingText: ["tmux attach -t xianxing-altitude-third-pane-old"],
+            processArgumentVectors: [["node", "office/dist/index.js", "a", "c5017c5d-old"]]
         )
 
         #expect(!AltitudeSurfaceMatcher.matches(
@@ -82,6 +85,17 @@ struct AltitudeOfficeSurfaceMatcherTests {
             tmuxSession: "xianxing-altitude-third-pane",
             evidence: evidence
         ))
+    }
+
+    @Test("a bare process argument is not mistaken for an office attachment")
+    func bareProcessArgumentDoesNotMatch() {
+        let sessionID = "c5017c5d-e034-43da-8834-eb21479f8256"
+        let evidence = AltitudeSurfaceEvidence(
+            title: "unrelated",
+            processArgumentVectors: [["node", "script.js", "--label", sessionID]]
+        )
+
+        #expect(!AltitudeSurfaceMatcher.matches(sessionIDs: [sessionID], tmuxSession: nil, evidence: evidence))
     }
 }
 
@@ -95,20 +109,36 @@ struct AltitudeSeatPinningTests {
         #expect(
             AltitudeSeatMovePolicy.decision(
                 movingSurfaceID: incomingSurface,
+                sourceSeatSurfaceID: nil,
                 destinationSeatSurfaceID: seatSurface
             ) == .offerReanoint
         )
         #expect(
             AltitudeSeatMovePolicy.decision(
                 movingSurfaceID: seatSurface,
+                sourceSeatSurfaceID: seatSurface,
                 destinationSeatSurfaceID: seatSurface
             ) == .allow
         )
         #expect(
             AltitudeSeatMovePolicy.decision(
                 movingSurfaceID: incomingSurface,
+                sourceSeatSurfaceID: nil,
                 destinationSeatSurfaceID: nil
             ) == .allow
+        )
+    }
+
+
+    @Test("an anointed tab cannot leave its seat pane")
+    func anointedSurfaceRefusesMoveOut() {
+        let seatSurface = UUID()
+        #expect(
+            AltitudeSeatMovePolicy.decision(
+                movingSurfaceID: seatSurface,
+                sourceSeatSurfaceID: seatSurface,
+                destinationSeatSurfaceID: nil
+            ) == .refuseAnointedSeatMove
         )
     }
 
@@ -125,5 +155,19 @@ struct AltitudeSeatPinningTests {
 
         #expect(configuration.leadSurfaceId == understudy)
         #expect(configuration.understudySurfaceId == lead)
+    }
+}
+
+
+@Suite("Altitude command palette corpus")
+struct AltitudeCommandPaletteCorpusTests {
+    @Test("needs-you entries remain in the corpus for a typed query")
+    func typedQueryKeepsNeedsYouEntries() {
+        let entries = AltitudePaletteCorpus.orderedEntries(
+            query: "needs teren",
+            priorityEntries: ["priority"],
+            needsYouEntries: ["needs-you"]
+        )
+        #expect(entries == ["needs-you"])
     }
 }

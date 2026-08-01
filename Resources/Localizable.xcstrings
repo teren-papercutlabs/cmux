@@ -241203,6 +241203,23 @@
           }
         }
       }
+    },
+    "altitude.palette.priority": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priority"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "優先順位"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

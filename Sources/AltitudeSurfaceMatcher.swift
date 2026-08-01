@@ -2,7 +2,18 @@ import Foundation
 
 struct AltitudeSurfaceEvidence: Equatable {
     let title: String
-    let processArguments: [String]
+    let bindingText: [String]
+    let processArgumentVectors: [[String]]
+
+    init(
+        title: String,
+        bindingText: [String] = [],
+        processArgumentVectors: [[String]]
+    ) {
+        self.title = title
+        self.bindingText = bindingText
+        self.processArgumentVectors = processArgumentVectors
+    }
 }
 
 enum AltitudeSurfaceMatcher {
@@ -13,19 +24,25 @@ enum AltitudeSurfaceMatcher {
     ) -> Bool {
         let candidates = sessionIDs.union(tmuxSession.map { [$0] } ?? [])
         guard !candidates.isEmpty else { return false }
-        let titleTokens = tokens(in: evidence.title)
-        if !titleTokens.isDisjoint(with: candidates) { return true }
+        if !tokens(in: evidence.title).isDisjoint(with: candidates) { return true }
+        if evidence.bindingText.contains(where: { !tokens(in: $0).isDisjoint(with: candidates) }) {
+            return true
+        }
 
-        for index in evidence.processArguments.indices where evidence.processArguments[index] == "a" {
-            let next = evidence.processArguments.index(after: index)
-            if evidence.processArguments.indices.contains(next), candidates.contains(evidence.processArguments[next]) {
-                return true
+        for arguments in evidence.processArgumentVectors {
+            for index in arguments.indices where arguments[index] == "a" {
+                let next = arguments.index(after: index)
+                if arguments.indices.contains(next), candidates.contains(arguments[next]) {
+                    return true
+                }
             }
         }
-        return evidence.processArguments.contains(where: candidates.contains)
+        return false
     }
 
     private static func tokens(in value: String) -> Set<String> {
-        Set(value.split { $0.isWhitespace || $0 == "[" || $0 == "]" || $0 == ":" }.map(String.init))
+        Set(value.split { character in
+            !(character.isLetter || character.isNumber || character == "-" || character == "_" || character == ".")
+        }.map(String.init))
     }
 }

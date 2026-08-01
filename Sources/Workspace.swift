@@ -3105,10 +3105,17 @@ final class Workspace: Identifiable, ObservableObject {
         bonsplitController.paneBadgeProvider = { [weak self] paneID in
             guard let self else { return nil }
             let configuration = PcLPrioritySwitcherConfiguration.load()
-            let paneIDs = self.bonsplitController.allPaneIds
-            if paneIDs.first == paneID, configuration.leadSurfaceId != nil { return "1A" }
-            if paneIDs.dropFirst().first == paneID, configuration.understudySurfaceId != nil { return "1B" }
+            if let lead = configuration.leadSurfaceId,
+               self.panels[lead] != nil,
+               self.paneId(forPanelId: lead) == paneID { return "1A" }
+            if let understudy = configuration.understudySurfaceId,
+               self.panels[understudy] != nil,
+               self.paneId(forPanelId: understudy) == paneID { return "1B" }
             return nil
+        }
+        bonsplitController.tabContextPrioritySeatAvailabilityProvider = { [weak self] tabID, _ in
+            guard let self else { return false }
+            return AltitudeConfiguration.isEnabled() && self.panelIdFromSurfaceId(tabID) != nil
         }
         bonsplitController.tabContextForkConversationAvailabilityProvider = { [weak self] tabId, _ in
             guard let self,
@@ -4256,15 +4263,17 @@ final class Workspace: Identifiable, ObservableObject {
             _ = moveSurface(panelId: otherPanelID, toPane: paneIDs[otherIndex], atIndex: 0, focus: false)
             setPanelPinned(panelId: otherPanelID, pinned: true)
         }
+        bonsplitController.invalidateHostProvidedChrome()
         objectWillChange.send()
     }
 
-    private func clearAltitudeSeat(for panelID: UUID) {
+    func clearAltitudeSeat(for panelID: UUID) {
         var configuration = PcLPrioritySwitcherConfiguration.load()
         if configuration.leadSurfaceId == panelID { configuration.leadSurfaceId = nil }
         if configuration.understudySurfaceId == panelID { configuration.understudySurfaceId = nil }
         configuration.save()
         setPanelPinned(panelId: panelID, pinned: false)
+        bonsplitController.invalidateHostProvidedChrome()
         objectWillChange.send()
     }
 
@@ -11296,16 +11305,32 @@ extension Workspace: BonsplitDelegate {
               let panelID = panelIdFromSurfaceId(tab.id) else { return true }
         let configuration = PcLPrioritySwitcherConfiguration.load()
         let paneIDs = controller.allPaneIds
-        let destinationSeat: (PcLPrioritySwitcherConfiguration.Role, UUID?)? = {
-            if paneIDs.first == destination { return (.lead, configuration.leadSurfaceId) }
-            if paneIDs.dropFirst().first == destination { return (.understudy, configuration.understudySurfaceId) }
+        let seatInThisWorkspace: (PcLPrioritySwitcherConfiguration.Role) -> UUID? = { role in
+            let surfaceID = role == .lead ? configuration.leadSurfaceId : configuration.understudySurfaceId
+            guard let surfaceID, self.panels[surfaceID] != nil else { return nil }
+            return surfaceID
+        }
+        let sourceSeatSurfaceID: UUID? = {
+            if paneIDs.first == source { return seatInThisWorkspace(.lead) }
+            if paneIDs.dropFirst().first == source { return seatInThisWorkspace(.understudy) }
             return nil
         }()
-        guard let (role, seatPanelID) = destinationSeat,
-              AltitudeSeatMovePolicy.decision(
-                movingSurfaceID: panelID,
-                destinationSeatSurfaceID: seatPanelID
-              ) == .offerReanoint else { return true }
+        let destinationSeat: (PcLPrioritySwitcherConfiguration.Role, UUID?)? = {
+            if paneIDs.first == destination { return (.lead, seatInThisWorkspace(.lead)) }
+            if paneIDs.dropFirst().first == destination { return (.understudy, seatInThisWorkspace(.understudy)) }
+            return nil
+        }()
+        let decision = AltitudeSeatMovePolicy.decision(
+            movingSurfaceID: panelID,
+            sourceSeatSurfaceID: sourceSeatSurfaceID,
+            destinationSeatSurfaceID: destinationSeat?.1
+        )
+        guard decision != .allow else { return true }
+        if decision == .refuseAnointedSeatMove {
+            NSSound.beep()
+            return false
+        }
+        guard let (role, _) = destinationSeat else { return false }
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -12190,7 +12215,14 @@ extension Workspace: BonsplitDelegate {
     func splitTabBar(_ controller: BonsplitController, shouldSplitPane pane: PaneID, orientation: SplitOrientation) -> Bool {
         // In a remote tmux mirror, split means tmux `split-window`; always veto
         // local splits so the mirror never gains an orphan pane.
-        guard isRemoteTmuxMirror else { return true }
+        guard isRemoteTmuxMirror else {
+            let configuration = PcLPrioritySwitcherConfiguration.load()
+            let hasAltitudeSeat = [configuration.leadSurfaceId, configuration.understudySurfaceId]
+                .compactMap { $0 }
+                .contains { panels[$0] != nil }
+            guard hasAltitudeSeat else { return true }
+            return !Set(controller.allPaneIds.prefix(2)).contains(pane)
+        }
         if let tabId = bonsplitController.selectedTab(inPane: pane)?.id,
            let panelId = panelIdFromSurfaceId(tabId) {
             _ = AppDelegate.shared?.remoteTmuxController.handleMirrorTabSplitRequested(workspaceId: id, panelId: panelId, vertical: orientation == .vertical, focusIntent: .focusCreatedPane)
