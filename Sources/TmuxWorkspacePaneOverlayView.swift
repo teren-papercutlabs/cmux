@@ -24,10 +24,13 @@ struct TmuxWorkspacePaneOverlayView: View {
             if let altitudeSnapshot,
                let altitudeTargetRect,
                AltitudeNextUpFloatPresentation.shouldRender(snapshot: altitudeSnapshot) {
+                let floatWidth = AltitudeNextUpFloatPresentation.floatWidth(
+                    availableWidth: altitudeTargetRect.maxX
+                )
                 AltitudeNextUpFloat(
                     snapshot: altitudeSnapshot,
                     errorMessage: altitudeErrorMessage,
-                    availableWidth: altitudeTargetRect.width,
+                    availableWidth: floatWidth,
                     onGo: onAltitudeGo
                 )
                 .background {
@@ -39,11 +42,19 @@ struct TmuxWorkspacePaneOverlayView: View {
                     }
                 }
                 .frame(
-                    width: altitudeTargetRect.width,
+                    width: floatWidth,
                     height: altitudeTargetRect.height,
                     alignment: AltitudeNextUpFloatPresentation.anchor
                 )
-                .offset(x: altitudeTargetRect.minX, y: altitudeTargetRect.minY)
+                // The third pane is the anchor, not a clipping boundary. Let the
+                // cards grow leftward so the session and why line stay legible
+                // even when three equal-width panes make the target narrow.
+                .offset(
+                    x: AltitudeNextUpFloatPresentation.floatOriginX(
+                        targetMaxX: altitudeTargetRect.maxX
+                    ),
+                    y: altitudeTargetRect.minY
+                )
             }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

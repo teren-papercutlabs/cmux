@@ -231,13 +231,15 @@ struct AltitudeNextUpFloatPresentationTests {
         #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [3, 4]) == 3)
     }
 
-    @Test("card width includes its padding and clamps to a narrow pane")
-    func cardWidthClampsToPane() {
+    @Test("cards grow leftward from the target pane edge instead of clipping to the pane")
+    func cardWidthUsesOverlaySpace() {
         #expect(AltitudeNextUpFloatPresentation.preferredFloatWidth == 468)
         #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 500) == 468)
         #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 500) == 420)
+        #expect(AltitudeNextUpFloatPresentation.floatOriginX(targetMaxX: 1_000) == 532)
         #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 300) == 300)
         #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 300) == 252)
+        #expect(AltitudeNextUpFloatPresentation.floatOriginX(targetMaxX: 300) == 0)
     }
 }
 

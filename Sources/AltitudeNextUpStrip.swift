@@ -46,6 +46,10 @@ enum AltitudeNextUpFloatPresentation {
     static func cardContentWidth(availableWidth: CGFloat) -> CGFloat {
         max(0, floatWidth(availableWidth: availableWidth) - edgeInset * 2 - cardHorizontalPadding * 2)
     }
+
+    static func floatOriginX(targetMaxX: CGFloat) -> CGFloat {
+        max(0, targetMaxX - floatWidth(availableWidth: targetMaxX))
+    }
 }
 
 struct AltitudeNextUpFloat: View {
