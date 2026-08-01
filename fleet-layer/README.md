@@ -107,11 +107,18 @@ The cockpit refreshes every 10 seconds. Override with `PCL_FLEET_POLL_MS`. Quota
 
 ```text
 pcl-fleet snapshot --viewer-id <principal-id> [--json]
+pcl-fleet next-up --viewer-id <principal-id> [--priority-json <json>]
 pcl-fleet cockpit --viewer-id <principal-id>
 pcl-fleet launch --viewer-id <principal-id>
 pcl-fleet jump <agent-id> --viewer-id <principal-id>
 pcl-fleet doctor --viewer-id <principal-id>
 ```
+
+`next-up` is the deterministic Altitude projection. Only canonical `needs-you`
+agents are eligible. Priority breaks ties among eligible agents, then the oldest
+wait wins. Running and idle agents are never recommended. An empty machine-state
+explanation remains explicitly `uncertain`; v1 exposes a why-provider slot but
+makes no model call.
 
 `doctor` checks both the viewer-scoped Studio projection through Office and local
 cmux socket reachability. Use `PCL_FLEET_TRANSPORT=local` only for a Studio-side

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { CmuxClient, COCKPIT_PROCESS_NAME } from './cmux.mjs';
 import { assertSnapshot, buildFleetSnapshot } from './project.mjs';
+import { resolveNextUp } from './next-up.mjs';
 import { Cockpit, render } from './render.mjs';
 import { LiveSources } from './sources.mjs';
 import { OfficeFleetSource, safeViewerId } from './transport.mjs';
@@ -41,6 +42,7 @@ function usage() {
 
 Usage:
   pcl-fleet snapshot --viewer-id <id> [--json]
+  pcl-fleet next-up --viewer-id <id> [--priority-json <json>]
   pcl-fleet cockpit --viewer-id <id>
   pcl-fleet launch --viewer-id <id>
   pcl-fleet jump <agent> --viewer-id <id>
@@ -69,6 +71,15 @@ async function main() {
     const snapshot = await collectSnapshot();
     if (args.includes('--json')) process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
     else process.stdout.write(`${render(snapshot)}\n`);
+    return;
+  }
+  if (command === 'next-up') {
+    const priorityFlagIndex = args.indexOf('--priority-json');
+    const priorityBySessionId = priorityFlagIndex >= 0
+      ? JSON.parse(args[priorityFlagIndex + 1] ?? '{}')
+      : {};
+    const snapshot = await collectSnapshot();
+    process.stdout.write(`${JSON.stringify(resolveNextUp(snapshot, { priorityBySessionId }))}\n`);
     return;
   }
   if (command === 'cockpit') {
