@@ -889,6 +889,19 @@ struct ContentView: View {
     @StateObject private var sessionIndexStore = SessionIndexStore()
     @StateObject private var selectedWorkspaceDirectoryObserver = SelectedWorkspaceDirectoryObserver()
     @State private var commandPaletteOverlayRenderModel = CommandPaletteOverlayRenderModel()
+    @State private var altitudeCoordinator = AltitudeCoordinator(
+        service: AltitudeFleetService(
+            scriptURL: Bundle.main.url(
+                forResource: "cli",
+                withExtension: "mjs",
+                subdirectory: "fleet-layer/src"
+            ),
+            viewerID: AltitudeConfiguration().viewerID
+        )
+    )
+    @AppStorage(AltitudeConfiguration.flatPaletteKey) private var altitudeFlatPalette = false
+    @State private var altitudeNeedsYouExpanded = false
+    @State private var altitudeNavigationError: String?
     @State private var backgroundWorkspacePrimeCoordinator = BackgroundWorkspacePrimeCoordinator()
     @State private var workspacePresentationModeRuntimeCache = WorkspacePresentationModeRuntimeCache()
     @State private var fileExplorerWidth: CGFloat = 220
@@ -2588,6 +2601,33 @@ struct ContentView: View {
 
                 contentAndSidebarLayout(appearance: appearance)
 
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer(minLength: 0)
+                        AltitudeNextUpStrip(
+                            snapshot: altitudeCoordinator.snapshot,
+                            configuration: AltitudeConfiguration(),
+                            errorMessage: altitudeNavigationError ?? altitudeCoordinator.lastError,
+                            onGo: altitudeGo
+                        )
+                        .frame(maxWidth: 520)
+                    }
+                }
+                .allowsHitTesting(true)
+                .zIndex(80)
+
+                if altitudePriority1AStage >= .bright {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        Rectangle()
+                            .stroke(Color.orange.opacity(0.22), lineWidth: 1)
+                            .frame(maxWidth: 520)
+                    }
+                    .allowsHitTesting(false)
+                    .zIndex(70)
+                }
+
                 WorkspaceTitlebarModeLayer {
                     workspaceTitlebarBand(appearance: appearance)
                         .zIndex(100)
@@ -2607,6 +2647,7 @@ struct ContentView: View {
         )
 
         view = AnyView(view.onAppear {
+            altitudeCoordinator.start(priorityProvider: altitudePriorityBySessionId)
             selectedWorkspaceDirectoryObserver.wire(tabManager: tabManager)
             tabManager.applyWindowBackgroundForSelectedTab()
             reconcileMountedWorkspaceIds()
@@ -2674,6 +2715,38 @@ struct ContentView: View {
                     ])
                 }
             }
+        })
+
+        view = AnyView(view.onDisappear {
+            altitudeCoordinator.stop()
+        })
+
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoTop)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
+            altitudeGo(at: 0)
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoSecond)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
+            altitudeGo(at: 1)
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoThird)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
+            altitudeGo(at: 2)
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoPriority1A)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
+            altitudeGoPriority("1A")
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoPriority1B)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
+            altitudeGoPriority("1B")
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeExpandNeedsYou)) { notification in
+            guard isCommandPalettePresented,
+                  Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow),
+                  commandPaletteSelectedResultID() == "altitude.needs-you.expand" else { return }
+            altitudeNeedsYouExpanded = true
+            refreshCommandPaletteSearchCorpus(force: true)
         })
 
         view = AnyView(view.onChange(of: tabManager.selectedTabId) { newValue in
@@ -5337,6 +5410,16 @@ struct ContentView: View {
         var hasher = Hasher()
         hasher.combine(CommandPaletteSwitcherFingerprintContext.fingerprint(windowContexts: fingerprintContexts))
         hasher.combine(UserDefaults.standard.data(forKey: PcLPrioritySwitcherConfiguration.defaultsKey))
+        hasher.combine(altitudeFlatPalette)
+        hasher.combine(altitudeNeedsYouExpanded)
+        hasher.combine(altitudeCoordinator.snapshot.collectedAt)
+        for item in altitudeCoordinator.snapshot.items {
+            hasher.combine(item.sessionId)
+            hasher.combine(item.priority)
+            hasher.combine(item.classification)
+            hasher.combine(item.why.line)
+            hasher.combine(item.waitSeconds)
+        }
         return hasher.finalize()
     }
 
@@ -5415,9 +5498,12 @@ struct ContentView: View {
 
         if Self.commandPaletteQueryForMatching(query: commandPaletteQuery, scope: .switcher)
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return commandPalettePrioritySwitcherEntries(
+            let priorityEntries = commandPalettePrioritySwitcherEntries(
                 contexts: windowContexts,
                 configuration: priorityConfiguration
+            )
+            return priorityEntries + commandPaletteAltitudeNeedsYouEntries(
+                startingRank: priorityEntries.count
             )
         }
 
@@ -5541,13 +5627,13 @@ struct ContentView: View {
         contexts: [CommandPaletteSwitcherWindowContext],
         configuration: PcLPrioritySwitcherConfiguration
     ) -> [CommandPaletteCommand] {
-        let roles: [(String, UUID?)] = [
-            ("Lead", configuration.leadSurfaceId),
-            ("Understudy", configuration.understudySurfaceId),
+        let roles: [(id: String, label: String, surfaceID: UUID?)] = [
+            ("lead", "1A", configuration.leadSurfaceId),
+            ("understudy", "1B", configuration.understudySurfaceId),
         ]
         var entries: [CommandPaletteCommand] = []
         for (rank, role) in roles.enumerated() {
-            guard let surfaceId = role.1 else { continue }
+            guard let surfaceId = role.surfaceID else { continue }
             for context in contexts {
                 for workspace in context.tabManager.tabs {
                     guard let match = workspace.panels.first(where: { $0.key == surfaceId }) else { continue }
@@ -5560,14 +5646,14 @@ struct ContentView: View {
                     let workspaceId = workspace.id
                     let panelId = match.key
                     entries.append(CommandPaletteCommand(
-                        id: "switcher.priority.\(role.0.lowercased())",
+                        id: "switcher.priority.\(role.id)",
                         rank: rank,
-                        title: "\(role.0) — \(surfaceName)",
+                        title: "\(role.label) — \(surfaceName)",
                         subtitle: workspaceDisplayName(workspace),
-                        shortcutHint: role.0 == "Lead" ? "↩" : "⌘↩",
+                        shortcutHint: role.label == "1A" ? "↩" : "⌘↩",
                         kindLabel: nil,
                         sectionLabel: "Priority",
-                        keywords: [role.0, surfaceName],
+                        keywords: [role.label, surfaceName],
                         dismissOnRun: true,
                         action: {
                             focusCommandPaletteSwitcherSurfaceTarget(
@@ -5580,10 +5666,170 @@ struct ContentView: View {
                     ))
                     break
                 }
-                if entries.last?.id == "switcher.priority.\(role.0.lowercased())" { break }
+                if entries.last?.id == "switcher.priority.\(role.id)" { break }
             }
         }
         return entries
+    }
+
+    private func commandPaletteAltitudeNeedsYouEntries(startingRank: Int) -> [CommandPaletteCommand] {
+        let items = altitudeCoordinator.snapshot.items
+        let visibleCount = altitudeFlatPalette || altitudeNeedsYouExpanded ? items.count : min(3, items.count)
+        var entries = Array(items.prefix(visibleCount).enumerated()).map { index, item in
+            CommandPaletteCommand(
+                id: "altitude.needs-you.\(item.sessionId)",
+                rank: startingRank + index,
+                title: "\(item.priority.map { "\($0) · " } ?? "")\(item.agentName)",
+                subtitle: "\(item.why.line) · \(altitudeWaitLabel(item.waitSeconds))",
+                shortcutHint: index == 0 ? "⌥↩" : index < 3 ? "⌥\(index + 1)" : nil,
+                kindLabel: item.classification == "uncertain"
+                    ? String(localized: "altitude.palette.uncertain", defaultValue: "Uncertain")
+                    : String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
+                sectionLabel: String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
+                keywords: ["needs you", item.agentName, item.why.label, item.why.line],
+                dismissOnRun: true,
+                action: { altitudeGo(item) }
+            )
+        }
+        if !altitudeFlatPalette, items.count > visibleCount {
+            let remaining = items.count - visibleCount
+            entries.append(CommandPaletteCommand(
+                id: "altitude.needs-you.expand",
+                rank: startingRank + entries.count,
+                title: String(
+                    format: String(localized: "altitude.palette.more", defaultValue: "%lld more — tab to expand"),
+                    Int64(remaining)
+                ),
+                subtitle: "",
+                shortcutHint: "⇥",
+                kindLabel: nil,
+                sectionLabel: String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
+                keywords: ["more", "expand", "tab"],
+                dismissOnRun: false,
+                action: {
+                    altitudeNeedsYouExpanded = true
+                    refreshCommandPaletteSearchCorpus(force: true)
+                }
+            ))
+        }
+        entries.append(CommandPaletteCommand(
+            id: "altitude.needs-you.toggle-flat",
+            rank: startingRank + entries.count,
+            title: altitudeFlatPalette
+                ? String(localized: "altitude.palette.fold", defaultValue: "Use folded needs-you view")
+                : String(localized: "altitude.palette.flat", defaultValue: "Use flat needs-you view"),
+            subtitle: String(localized: "altitude.palette.viewSetting", defaultValue: "Palette setting"),
+            shortcutHint: nil,
+            kindLabel: nil,
+            sectionLabel: String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
+            keywords: ["flat", "folded", "setting"],
+            dismissOnRun: false,
+            action: {
+                altitudeFlatPalette.toggle()
+                altitudeNeedsYouExpanded = false
+                refreshCommandPaletteSearchCorpus(force: true)
+            }
+        ))
+        return entries
+    }
+
+    private func altitudePriorityBySessionId() -> [String: String] {
+        let configuration = PcLPrioritySwitcherConfiguration.load()
+        var priorities: [String: String] = [:]
+        for context in commandPaletteSwitcherWindowContexts() {
+            for workspace in context.tabManager.tabs {
+                for (panelId, priority) in [
+                    (configuration.leadSurfaceId, "1A"),
+                    (configuration.understudySurfaceId, "1B"),
+                ] {
+                    guard let panelId,
+                          workspace.panels[panelId] != nil,
+                          let checkpointID = workspace.surfaceResumeBinding(panelId: panelId)?.checkpointId else { continue }
+                    priorities[checkpointID] = priority
+                }
+            }
+        }
+        return priorities
+    }
+
+    private func altitudeGo(at index: Int) {
+        guard altitudeCoordinator.snapshot.items.indices.contains(index) else {
+            altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
+            return
+        }
+        altitudeGo(altitudeCoordinator.snapshot.items[index])
+    }
+
+    private func altitudeGoPriority(_ priority: String) {
+        guard let item = altitudeCoordinator.snapshot.items.first(where: { $0.priority == priority }) else {
+            let configuration = PcLPrioritySwitcherConfiguration.load()
+            let surfaceID = priority == "1A" ? configuration.leadSurfaceId : configuration.understudySurfaceId
+            guard let surfaceID else {
+                altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
+                return
+            }
+            for context in commandPaletteSwitcherWindowContexts() {
+                for workspace in context.tabManager.tabs where workspace.panels[surfaceID] != nil {
+                    focusCommandPaletteSwitcherSurfaceTarget(
+                        windowId: context.windowId,
+                        tabManager: context.tabManager,
+                        workspaceId: workspace.id,
+                        panelId: surfaceID
+                    )
+                    altitudeNavigationError = nil
+                    return
+                }
+            }
+            altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
+            return
+        }
+        altitudeGo(item)
+    }
+
+    private func altitudeGo(_ item: AltitudeNextUpItem) {
+        let candidateSessionIDs = Set([item.sessionId, item.jumpSessionId].compactMap { $0 })
+        for context in commandPaletteSwitcherWindowContexts() {
+            for workspace in context.tabManager.tabs {
+                for panelID in workspace.panels.keys {
+                    guard let binding = workspace.surfaceResumeBinding(panelId: panelID) else { continue }
+                    let matchesSession = binding.checkpointId.map(candidateSessionIDs.contains) == true
+                    let matchesTmux = item.tmuxSession.map { tmux in
+                        binding.name == tmux
+                            || binding.command.contains(tmux)
+                            || binding.environment?.values.contains(tmux) == true
+                    } == true
+                    guard matchesSession || matchesTmux else { continue }
+                    focusCommandPaletteSwitcherSurfaceTarget(
+                        windowId: context.windowId,
+                        tabManager: context.tabManager,
+                        workspaceId: workspace.id,
+                        panelId: panelID
+                    )
+                    altitudeNavigationError = nil
+                    return
+                }
+            }
+        }
+        altitudeNavigationError = String(localized: "altitude.navigation.sessionNotFound", defaultValue: "Altitude could not locate that session in this window")
+    }
+
+    private func altitudeWaitLabel(_ seconds: Int) -> String {
+        guard seconds >= 60 else { return String(localized: "altitude.wait.now", defaultValue: "now") }
+        return String(
+            format: String(localized: "altitude.wait.minutes", defaultValue: "%lldm waiting"),
+            Int64(max(1, seconds / 60))
+        )
+    }
+
+    private var altitudePriority1AStage: AltitudePresenceStage {
+        guard let item = altitudeCoordinator.snapshot.items.first(where: { $0.priority == "1A" }) else {
+            return .ready
+        }
+        return AltitudePresenceStage.resolve(
+            waitSeconds: item.waitSeconds,
+            priority: item.priority,
+            configuration: AltitudeConfiguration()
+        )
     }
 
     private func commandPaletteGroup(
@@ -7060,26 +7306,26 @@ struct ContentView: View {
         contributions.append(contentsOf: [
             CommandPaletteCommandContribution(
                 commandId: "pcl.priority.setLead",
-                title: constant("Priority: Make Current Session Lead"),
+                title: constant(String(localized: "altitude.priority.anoint1A", defaultValue: "Anoint current session 1A")),
                 subtitle: panelSubtitle,
-                keywords: ["pcl", "priority", "lead", "anoint"]
+                keywords: ["altitude", "priority", "1a", "anoint"]
             ),
             CommandPaletteCommandContribution(
                 commandId: "pcl.priority.setUnderstudy",
-                title: constant("Priority: Make Current Session Understudy"),
+                title: constant(String(localized: "altitude.priority.anoint1B", defaultValue: "Anoint current session 1B")),
                 subtitle: panelSubtitle,
-                keywords: ["pcl", "priority", "understudy", "anoint"]
+                keywords: ["altitude", "priority", "1b", "anoint"]
             ),
             CommandPaletteCommandContribution(
                 commandId: "pcl.priority.clearLead",
-                title: constant("Priority: Clear Lead"),
-                subtitle: constant("PcL session priority"),
+                title: constant(String(localized: "altitude.priority.clear1A", defaultValue: "Clear 1A")),
+                subtitle: constant(String(localized: "altitude.priority.subtitle", defaultValue: "Altitude session priority")),
                 keywords: ["pcl", "priority", "lead", "clear"]
             ),
             CommandPaletteCommandContribution(
                 commandId: "pcl.priority.clearUnderstudy",
-                title: constant("Priority: Clear Understudy"),
-                subtitle: constant("PcL session priority"),
+                title: constant(String(localized: "altitude.priority.clear1B", defaultValue: "Clear 1B")),
+                subtitle: constant(String(localized: "altitude.priority.subtitle", defaultValue: "Altitude session priority")),
                 keywords: ["pcl", "priority", "understudy", "clear"]
             ),
         ])
@@ -9020,6 +9266,13 @@ struct ContentView: View {
     private func commandPaletteSelectedIndex(resultCount: Int) -> Int {
         guard resultCount > 0 else { return 0 }
         return min(max(commandPaletteSelectedResultIndex, 0), resultCount - 1)
+    }
+
+    private func commandPaletteSelectedResultID() -> String? {
+        guard !commandPaletteVisibleResults.isEmpty else { return nil }
+        return commandPaletteVisibleResults[
+            commandPaletteSelectedIndex(resultCount: commandPaletteVisibleResults.count)
+        ].id
     }
 
     static func commandPaletteResolvedSelectionIndex(

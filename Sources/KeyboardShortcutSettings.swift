@@ -366,7 +366,7 @@ enum KeyboardShortcutSettings {
             case .reopenPreviousSession:
                 return StoredShortcut(key: "o", command: true, shift: true, option: false, control: false)
             case .goToWorkspace:
-                return StoredShortcut(key: "p", command: true, shift: false, option: false, control: false)
+                return StoredShortcut(key: "k", command: true, shift: false, option: false, control: false)
             case .commandPalette:
                 return StoredShortcut(key: "p", command: true, shift: true, option: false, control: false)
             case .commandPaletteNext:
