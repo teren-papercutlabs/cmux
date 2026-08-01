@@ -215,8 +215,9 @@ struct AltitudeNextUpFloatPresentationTests {
         )
 
         let cards = AltitudeNextUpFloatPresentation.cards(snapshot: snapshot)
+        let first = try #require(cards.first)
         #expect(cards.count == 3)
-        #expect(try #require(cards.first).sessionName == "kleya-hive-drive")
+        #expect(first.sessionName == "kleya-hive-drive")
         #expect(cards.map(\.shortcutHint) == ["⌥↩", "⌥2", "⌥3"])
     }
 
@@ -227,5 +228,27 @@ struct AltitudeNextUpFloatPresentationTests {
         #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 2) == 1)
         #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 3) == 2)
         #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 5) == 2)
+    }
+
+    @Test("only the card stack captures clicks inside the target pane")
+    func interactiveRectStaysBottomTrailing() throws {
+        let target = CGRect(x: 800, y: 40, width: 500, height: 700)
+        let rect = try #require(
+            AltitudeNextUpFloatPresentation.interactiveRect(
+                targetRect: target,
+                cardCount: 3,
+                includesError: false
+            )
+        )
+
+        #expect(rect.maxX == target.maxX)
+        #expect(rect.maxY == target.maxY)
+        #expect(rect.minX >= target.minX)
+        #expect(rect.minY > target.minY)
+        #expect(AltitudeNextUpFloatPresentation.interactiveRect(
+            targetRect: target,
+            cardCount: 0,
+            includesError: false
+        ) == nil)
     }
 }

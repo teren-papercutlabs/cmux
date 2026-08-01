@@ -40,7 +40,11 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: nil,
                 activePaneBorderColorHex: nil,
                 flashStartedAt: nil,
-                flashReason: nil
+                flashReason: nil,
+                altitudeSnapshot: nil,
+                altitudeErrorMessage: nil,
+                altitudeTargetRect: nil,
+                onAltitudeGo: { _ in }
             )
         )
         super.init()
@@ -107,7 +111,16 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: model.activePaneBorderRect,
                 activePaneBorderColorHex: model.activePaneBorderColorHex,
                 flashStartedAt: model.flashStartedAt,
-                flashReason: model.flashReason
+                flashReason: model.flashReason,
+                altitudeSnapshot: state.altitudeSnapshot,
+                altitudeErrorMessage: state.altitudeErrorMessage,
+                altitudeTargetRect: state.altitudeTargetRect,
+                onAltitudeGo: onAltitudeGo
+            )
+            containerView.interactiveRect = AltitudeNextUpFloatPresentation.interactiveRect(
+                targetRect: state.altitudeTargetRect,
+                cardCount: state.altitudeSnapshot.map { AltitudeNextUpFloatPresentation.cards(snapshot: $0).count } ?? 0,
+                includesError: state.altitudeErrorMessage != nil
             )
             containerView.alphaValue = 1
             containerView.isHidden = false
@@ -120,11 +133,22 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: nil,
                 activePaneBorderColorHex: nil,
                 flashStartedAt: nil,
-                flashReason: nil
+                flashReason: nil,
+                altitudeSnapshot: nil,
+                altitudeErrorMessage: nil,
+                altitudeTargetRect: nil,
+                onAltitudeGo: { _ in }
             )
+            containerView.interactiveRect = nil
             containerView.alphaValue = 0
             containerView.isHidden = true
         }
+    }
+
+    private var onAltitudeGo: (AltitudeNextUpItem) -> Void = { _ in }
+
+    func setAltitudeGoAction(_ action: @escaping (AltitudeNextUpItem) -> Void) {
+        onAltitudeGo = action
     }
 
     func scheduleGeometryRefresh(stateProvider: @MainActor @escaping () -> TmuxWorkspacePaneOverlayRenderState?) {

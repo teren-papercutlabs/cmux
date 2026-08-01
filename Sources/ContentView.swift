@@ -905,7 +905,6 @@ struct ContentView: View {
             viewerID: AltitudeConfiguration().viewerID
         )
     )
-    @State private var altitudeConfiguration = AltitudeConfiguration()
     @AppStorage(AltitudeConfiguration.flatPaletteKey) private var altitudeFlatPalette = false
     @State private var altitudeNeedsYouExpanded = false
     @State private var altitudeNavigationError: String?
@@ -1054,7 +1053,9 @@ struct ContentView: View {
         let usesWorkspacePaneOverlay = TmuxOverlayExperimentSettings.target().usesWorkspacePaneOverlay
         let resolvedActivePaneBorderColorHex = WorkspaceTabColorSettings.normalizedHex(activePaneBorderColorHex)
         let shouldShowActivePaneBorder = shouldShowActivePaneBorder(for: workspace, colorHex: resolvedActivePaneBorderColorHex)
-        guard usesWorkspacePaneOverlay || shouldShowActivePaneBorder else { return nil }
+        let shouldShowAltitudeNextUp = AltitudeConfiguration.isEnabled()
+            && AltitudeNextUpFloatPresentation.shouldRender(snapshot: altitudeCoordinator.snapshot)
+        guard usesWorkspacePaneOverlay || shouldShowActivePaneBorder || shouldShowAltitudeNextUp else { return nil }
 
         let layoutSnapshot = WorkspaceContentView.effectiveTmuxLayoutSnapshot(
             cachedSnapshot: workspace.tmuxLayoutSnapshot,
@@ -1149,7 +1150,33 @@ struct ContentView: View {
             activePaneBorderRect = nil
         }
 
-        if unreadRects.isEmpty, flashRect == nil, activePaneBorderRect == nil {
+        let altitudeTargetRect: CGRect?
+        if shouldShowAltitudeNextUp,
+           let targetIndex = AltitudeNextUpFloatPresentation.targetPaneIndex(
+               paneCount: workspace.bonsplitController.allPaneIds.count
+           ) {
+            let paneId = workspace.bonsplitController.allPaneIds[targetIndex]
+            let panel = workspace.bonsplitController.selectedTab(inPane: paneId)
+                .flatMap { workspace.panelIdFromSurfaceId($0.id) }
+                .flatMap { workspace.panels[$0] }
+            if let panel = panel as? TerminalPanel {
+                let paneRect = WorkspaceContentView.tmuxWorkspacePaneWindowOverlayRect(
+                    layoutSnapshot: layoutSnapshot,
+                    paneId: paneId
+                )
+                let exactRect = contentView.flatMap { Self.tmuxWorkspacePaneExactRect(for: panel, in: $0) }
+                altitudeTargetRect = Self.preferredTmuxWorkspacePaneWindowOverlayRect(
+                    exactRect: exactRect,
+                    paneRect: paneRect
+                )
+            } else {
+                altitudeTargetRect = nil
+            }
+        } else {
+            altitudeTargetRect = nil
+        }
+
+        if unreadRects.isEmpty, flashRect == nil, activePaneBorderRect == nil, altitudeTargetRect == nil {
             guard usesWorkspacePaneOverlay else { return nil }
             return TmuxWorkspacePaneOverlayRenderState(
                 workspaceId: workspace.id,
@@ -1158,7 +1185,10 @@ struct ContentView: View {
                 activePaneBorderRect: nil,
                 activePaneBorderColorHex: nil,
                 flashToken: workspace.tmuxWorkspaceFlashToken,
-                flashReason: workspace.tmuxWorkspaceFlashReason
+                flashReason: workspace.tmuxWorkspaceFlashReason,
+                altitudeSnapshot: nil,
+                altitudeErrorMessage: nil,
+                altitudeTargetRect: nil
             )
         }
 
@@ -1169,17 +1199,22 @@ struct ContentView: View {
             activePaneBorderRect: activePaneBorderRect,
             activePaneBorderColorHex: activePaneBorderRect == nil ? nil : resolvedActivePaneBorderColorHex,
             flashToken: workspace.tmuxWorkspaceFlashToken,
-            flashReason: workspace.tmuxWorkspaceFlashReason
+            flashReason: workspace.tmuxWorkspaceFlashReason,
+            altitudeSnapshot: altitudeTargetRect == nil ? nil : altitudeCoordinator.snapshot,
+            altitudeErrorMessage: altitudeNavigationError ?? altitudeCoordinator.lastError,
+            altitudeTargetRect: altitudeTargetRect
         )
     }
 
     private func refreshTmuxWorkspacePaneWindowOverlay(in window: NSWindow?) {
         guard let window else { return }
         let tmuxOverlayState = tmuxWorkspacePaneWindowOverlayState(for: window)
-        WindowTmuxWorkspacePaneOverlayController.controller(
+        let controller = WindowTmuxWorkspacePaneOverlayController.controller(
             for: window,
             createIfNeeded: tmuxOverlayState != nil
-        )?.update(state: tmuxOverlayState)
+        )
+        controller?.setAltitudeGoAction(altitudeGo)
+        controller?.update(state: tmuxOverlayState)
     }
 
     private func shouldShowActivePaneBorder(for workspace: Workspace, colorHex: String?) -> Bool {
@@ -2606,36 +2641,9 @@ struct ContentView: View {
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
 
-                VStack(spacing: 0) {
-                    contentAndSidebarLayout(appearance: appearance)
-                    if AltitudeConfiguration.isEnabled() {
-                        HStack(spacing: 0) {
-                            Spacer(minLength: 0)
-                            AltitudeNextUpStrip(
-                                snapshot: altitudeCoordinator.snapshot,
-                                configuration: altitudeConfiguration,
-                                errorMessage: altitudeNavigationError ?? altitudeCoordinator.lastError,
-                                onGo: altitudeGo
-                            )
-                            .frame(maxWidth: 520)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .background(Color(nsColor: .windowBackgroundColor))
-                    }
-                }
+                contentAndSidebarLayout(appearance: appearance)
                 .allowsHitTesting(true)
                 .zIndex(80)
-
-                if AltitudeConfiguration.isEnabled(), altitudePriority1AStage >= .bright {
-                    HStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        Rectangle()
-                            .stroke(Color.orange.opacity(0.22), lineWidth: 1)
-                            .frame(maxWidth: 520)
-                    }
-                    .allowsHitTesting(false)
-                    .zIndex(90)
-                }
 
                 WorkspaceTitlebarModeLayer {
                     workspaceTitlebarBand(appearance: appearance)
@@ -2888,6 +2896,18 @@ struct ContentView: View {
         })
 
         view = AnyView(view.onChange(of: activePaneBorderColorHex) { _, _ in
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+        })
+
+        view = AnyView(view.onChange(of: altitudeCoordinator.snapshot) { _, _ in
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+        })
+
+        view = AnyView(view.onChange(of: altitudeNavigationError) { _, _ in
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+        })
+
+        view = AnyView(view.onChange(of: altitudeCoordinator.lastError) { _, _ in
             refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
 
@@ -5845,17 +5865,6 @@ struct ContentView: View {
         return String(
             format: String(localized: "altitude.wait.minutes", defaultValue: "%lldm waiting"),
             Int64(max(1, seconds / 60))
-        )
-    }
-
-    private var altitudePriority1AStage: AltitudePresenceStage {
-        guard let item = altitudeCoordinator.snapshot.items.first(where: { $0.priority == "1A" }) else {
-            return .ready
-        }
-        return AltitudePresenceStage.resolve(
-            waitSeconds: item.waitSeconds,
-            priority: item.priority,
-            configuration: altitudeConfiguration
         )
     }
 

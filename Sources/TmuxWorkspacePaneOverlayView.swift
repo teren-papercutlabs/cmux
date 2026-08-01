@@ -9,11 +9,33 @@ struct TmuxWorkspacePaneOverlayView: View {
     let activePaneBorderColorHex: String?
     let flashStartedAt: Date?
     let flashReason: WorkspaceAttentionFlashReason?
+    let altitudeSnapshot: AltitudeNextUpSnapshot?
+    let altitudeErrorMessage: String?
+    let altitudeTargetRect: CGRect?
+    let onAltitudeGo: (AltitudeNextUpItem) -> Void
     @State private var completedFlashStartedAt: Date?
 
     var body: some View {
-        overlayContent
-            .allowsHitTesting(false)
+        ZStack(alignment: .topLeading) {
+            overlayContent
+                .allowsHitTesting(false)
+
+            if let altitudeSnapshot,
+               let altitudeTargetRect,
+               AltitudeNextUpFloatPresentation.shouldRender(snapshot: altitudeSnapshot) {
+                AltitudeNextUpFloat(
+                    snapshot: altitudeSnapshot,
+                    errorMessage: altitudeErrorMessage,
+                    onGo: onAltitudeGo
+                )
+                .frame(
+                    width: altitudeTargetRect.width,
+                    height: altitudeTargetRect.height,
+                    alignment: AltitudeNextUpFloatPresentation.anchor
+                )
+                .offset(x: altitudeTargetRect.minX, y: altitudeTargetRect.minY)
+            }
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

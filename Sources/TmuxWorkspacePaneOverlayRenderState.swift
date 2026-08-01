@@ -9,6 +9,9 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
     let activePaneBorderColorHex: String?
     let flashToken: UInt64
     let flashReason: WorkspaceAttentionFlashReason?
+    let altitudeSnapshot: AltitudeNextUpSnapshot?
+    let altitudeErrorMessage: String?
+    let altitudeTargetRect: CGRect?
 
     init(
         workspaceId: UUID,
@@ -17,7 +20,10 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
         activePaneBorderRect: CGRect? = nil,
         activePaneBorderColorHex: String? = nil,
         flashToken: UInt64,
-        flashReason: WorkspaceAttentionFlashReason?
+        flashReason: WorkspaceAttentionFlashReason?,
+        altitudeSnapshot: AltitudeNextUpSnapshot? = nil,
+        altitudeErrorMessage: String? = nil,
+        altitudeTargetRect: CGRect? = nil
     ) {
         self.workspaceId = workspaceId
         self.unreadRects = unreadRects
@@ -26,5 +32,8 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
         self.activePaneBorderColorHex = activePaneBorderColorHex
         self.flashToken = flashToken
         self.flashReason = flashReason
+        self.altitudeSnapshot = altitudeSnapshot
+        self.altitudeErrorMessage = altitudeErrorMessage
+        self.altitudeTargetRect = altitudeTargetRect
     }
 }

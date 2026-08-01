@@ -1,127 +1,150 @@
 import SwiftUI
 
-struct AltitudeNextUpStrip: View {
+enum AltitudeNextUpFloatPresentation {
+    struct Card: Identifiable, Equatable {
+        let item: AltitudeNextUpItem
+        let sessionName: String
+        let shortcutHint: String
+
+        var id: String { item.id }
+    }
+
+    static let maximumCardCount = 3
+    static let targetPaneOffset = 2
+    static let anchor: Alignment = .bottomTrailing
+    static let cardWidth: CGFloat = 420
+    static let edgeInset: CGFloat = 12
+    static let estimatedCardHeight: CGFloat = 94
+    static let cardSpacing: CGFloat = 8
+    static let estimatedErrorHeight: CGFloat = 32
+
+    static func shouldRender(snapshot: AltitudeNextUpSnapshot) -> Bool {
+        !snapshot.items.isEmpty
+    }
+
+    static func cards(snapshot: AltitudeNextUpSnapshot) -> [Card] {
+        Array(snapshot.items.prefix(maximumCardCount)).enumerated().map { index, item in
+            Card(
+                item: item,
+                sessionName: item.tmuxSession ?? item.jumpSessionId ?? item.sessionId,
+                shortcutHint: index == 0 ? "⌥↩" : "⌥\(index + 1)"
+            )
+        }
+    }
+
+    static func targetPaneIndex(paneCount: Int) -> Int? {
+        guard paneCount > 0 else { return nil }
+        return min(targetPaneOffset, paneCount - 1)
+    }
+
+    static func interactiveRect(
+        targetRect: CGRect?,
+        cardCount: Int,
+        includesError: Bool
+    ) -> CGRect? {
+        guard let targetRect, cardCount > 0 else { return nil }
+        let width = min(targetRect.width, cardWidth + edgeInset * 2)
+        let cardStackHeight = CGFloat(cardCount) * estimatedCardHeight
+            + CGFloat(max(0, cardCount - 1)) * cardSpacing
+        let height = min(
+            targetRect.height,
+            cardStackHeight + edgeInset * 2 + (includesError ? estimatedErrorHeight : 0)
+        )
+        return CGRect(
+            x: targetRect.maxX - width,
+            y: targetRect.maxY - height,
+            width: width,
+            height: height
+        )
+    }
+}
+
+struct AltitudeNextUpFloat: View {
     let snapshot: AltitudeNextUpSnapshot
-    let configuration: AltitudeConfiguration
     let errorMessage: String?
     let onGo: (AltitudeNextUpItem) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle")
-                    .cmuxFont(size: 10, weight: .medium)
-                    .foregroundStyle(Color.orange)
-                    .lineLimit(2)
-            }
-            presenceLines
-            HStack(spacing: 6) {
-                if snapshot.items.isEmpty, errorMessage == nil {
-                    Text(
-                        String(
-                            format: String(localized: "altitude.strip.empty", defaultValue: "nothing waiting · %lld processing"),
-                            Int64(snapshot.processingCount)
-                        )
-                    )
-                        .cmuxFont(size: 11, weight: .medium)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 7)
-                } else if snapshot.items.isEmpty {
-                    Text(String(localized: "altitude.strip.unavailable", defaultValue: "queue unavailable"))
+        let cards = AltitudeNextUpFloatPresentation.cards(snapshot: snapshot)
+        if !cards.isEmpty {
+            VStack(alignment: .trailing, spacing: 8) {
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle")
                         .cmuxFont(size: 11, weight: .medium)
                         .foregroundStyle(Color.orange)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 7)
-                } else {
-                    ForEach(Array(snapshot.items.prefix(3).enumerated()), id: \.element.id) { index, item in
-                        Button {
-                            onGo(item)
-                        } label: {
-                            itemLabel(item, index: index)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(
-                            String(
-                                format: String(localized: "altitude.strip.go.accessibility", defaultValue: "Go to %@, %@"),
-                                item.agentName,
-                                item.why.line
-                            )
+                        .lineLimit(2)
+                        .frame(width: AltitudeNextUpFloatPresentation.cardWidth, alignment: .leading)
+                }
+
+                ForEach(cards) { card in
+                    Button {
+                        onGo(card.item)
+                    } label: {
+                        cardLabel(card)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        String(
+                            format: String(localized: "altitude.strip.go.accessibility", defaultValue: "Go to %@, %@"),
+                            card.sessionName,
+                            card.item.why.line
                         )
-                    }
+                    )
                 }
             }
-            .padding(7)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.white.opacity(0.09), lineWidth: 1)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minHeight: 62)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    @ViewBuilder
-    private var presenceLines: some View {
-        ForEach(snapshot.items.filter { $0.priority == "1A" || $0.priority == "1B" }.prefix(2)) { item in
-            let stage = AltitudePresenceStage.resolve(
-                waitSeconds: item.waitSeconds,
-                priority: item.priority,
-                configuration: configuration
-            )
-            HStack(spacing: 6) {
-                if stage == .pulse {
-                    TimelineView(.periodic(from: .now, by: 60)) { context in
-                        Text(item.priority ?? "")
-                            .cmuxFont(size: 10, weight: .bold)
-                            .foregroundStyle(Color.orange)
-                            .opacity(Int(context.date.timeIntervalSince1970 / 60).isMultiple(of: 2) ? 1 : 0.45)
-                            .animation(.easeInOut(duration: 0.8), value: context.date)
-                    }
-                } else {
-                    Text(item.priority ?? "")
-                        .cmuxFont(size: 10, weight: .bold)
-                        .foregroundStyle(stage >= .bright ? Color.orange : Color.secondary)
-                }
-                Text(stage >= .bright ? formattedWait(item.waitSeconds) : String(localized: "altitude.presence.ready", defaultValue: "ready"))
-                    .cmuxFont(size: 10, weight: .medium)
-                    .foregroundStyle(stage >= .bright ? Color.primary : Color.secondary)
-            }
+            .padding(AltitudeNextUpFloatPresentation.edgeInset)
         }
     }
 
-    private func itemLabel(_ item: AltitudeNextUpItem, index: Int) -> some View {
-        let shortcut = index == 0 ? "⌥↩" : "⌥\(index + 1)"
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 5) {
-                if let priority = item.priority {
-                    Text(priority)
-                        .cmuxFont(size: 9, weight: .bold)
-                        .foregroundStyle(.orange)
+    private func cardLabel(_ card: AltitudeNextUpFloatPresentation.Card) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                if let priority = card.item.priority {
+                    Text(priority.uppercased())
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            Color.primary.opacity(0.07),
+                            in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        )
                 }
-                Text(item.agentName)
-                    .cmuxFont(size: 11, weight: .semibold)
+
+                Text(card.sessionName)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
-                Spacer(minLength: 4)
-                Text(shortcut)
-                    .cmuxFont(size: 9, weight: .medium)
+                    .truncationMode(.middle)
+
+                Spacer(minLength: 8)
+
+                Text(card.shortcutHint)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
-            Text(item.why.line)
-                .cmuxFont(size: 10, weight: .regular)
-                .foregroundStyle(item.classification == "uncertain" ? Color.orange : Color.secondary)
-                .lineLimit(1)
-            Text(formattedWait(item.waitSeconds))
-                .cmuxFont(size: 9, weight: .medium)
+
+            Text(card.item.why.line)
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(card.item.classification == "uncertain" ? Color.orange : Color.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(formattedWait(card.item.waitSeconds))
+                .cmuxFont(size: 10, weight: .medium)
                 .foregroundStyle(.tertiary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.primary.opacity(index == 0 ? 0.08 : 0.035), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .frame(width: AltitudeNextUpFloatPresentation.cardWidth, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.24), radius: 12, x: 0, y: 5)
+        .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
     private func formattedWait(_ seconds: Int) -> String {
