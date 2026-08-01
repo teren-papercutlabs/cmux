@@ -51,8 +51,11 @@ export function resolveNextUp(snapshot, options = {}) {
         agentId: agent.id,
         agentName: agent.name,
         sessionId: agent.attention.sessionId,
+        jumpSessionId: agent.jump?.sessionId ?? null,
         tmuxSession: agent.jump?.tmuxSession ?? null,
-        priority: priorityBySessionId[agent.attention.sessionId] ?? null,
+        priority: priorityBySessionId[agent.attention.sessionId]
+          ?? priorityBySessionId[agent.jump?.sessionId]
+          ?? null,
         classification: why.confidence > 0 ? 'actionable' : 'uncertain',
         why,
         waitingSince: agent.attention.createdAt ?? null,

@@ -127,6 +127,15 @@
 		REE0CA0000000000000000F2 /* AIAccountCredentialSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = REE0CA0000000000000000F1 /* AIAccountCredentialSources.swift */; };
 		REE0CA0000000000000000E2 /* AIAccountsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = REE0CA0000000000000000E1 /* AIAccountsClient.swift */; };
 		A115C0DE0000000000000002 /* AllShortcutsPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A115C0DE0000000000000001 /* AllShortcutsPopover.swift */; };
+		A17D01010000000000000000 /* AltitudeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02010000000000000000 /* AltitudeConfiguration.swift */; };
+		A17D01020000000000000000 /* AltitudeCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02020000000000000000 /* AltitudeCoordinator.swift */; };
+		A17D01030000000000000000 /* AltitudeFleetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02030000000000000000 /* AltitudeFleetService.swift */; };
+		A17D01040000000000000000 /* AltitudeNextUpItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02040000000000000000 /* AltitudeNextUpItem.swift */; };
+		A17D01050000000000000000 /* AltitudeNextUpSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02050000000000000000 /* AltitudeNextUpSnapshot.swift */; };
+		A17D01060000000000000000 /* AltitudeNextUpStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02060000000000000000 /* AltitudeNextUpStrip.swift */; };
+		A17D01070000000000000000 /* AltitudeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02070000000000000000 /* AltitudeNotifications.swift */; };
+		A17D01080000000000000000 /* AltitudePresenceStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02080000000000000000 /* AltitudePresenceStage.swift */; };
+		A17D01090000000000000000 /* AltitudePresenceStageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02090000000000000000 /* AltitudePresenceStageTests.swift */; };
 		F4350A110000000000000001 /* AppBundleIconPersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4350A130000000000000001 /* AppBundleIconPersistencePolicy.swift */; };
 		F4350A120000000000000001 /* AppBundleIconPersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4350A130000000000000001 /* AppBundleIconPersistencePolicy.swift */; };
 		804100000000000000000009 /* AppDelegate+AdjacentNavigationShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80410000000000000000000A /* AppDelegate+AdjacentNavigationShortcut.swift */; };
@@ -866,6 +875,7 @@ C0DE71B10000000000000001 /* AppDelegate+AgentChatNotifications.swift in Sources 
 		D0E0F0B4A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E0F0B5A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift */; };
 		F1A0C0DE0000000000000002 /* FindTextFieldSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C0DE0000000000000001 /* FindTextFieldSupport.swift */; };
 		C0F15A000000000000000001 /* FishShellIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0F15A000000000000000002 /* FishShellIntegrationTests.swift */; };
+		A17D010000000000000000F0 /* fleet-layer in Resources */ = {isa = PBXBuildFile; fileRef = A17D020000000000000000F0 /* fleet-layer */; };
 		F0C05170000000000000002 /* FocusHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C05170000000000000001 /* FocusHistory.swift */; };
 		C4160A020000000000000001 /* FocusHistoryMenuInvalidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4160A020000000000000002 /* FocusHistoryMenuInvalidator.swift */; };
 		5E55400000000000000000D1 /* FocusStealingResponderConformances.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E55400000000000000000D2 /* FocusStealingResponderConformances.swift */; };
@@ -2254,6 +2264,15 @@ C0DE71B10000000000000001 /* AppDelegate+AgentChatNotifications.swift in Sources 
 		REE0CA0000000000000000F1 /* AIAccountCredentialSources.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIAccountCredentialSources.swift; sourceTree = "<group>"; };
 		REE0CA0000000000000000E1 /* AIAccountsClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIAccountsClient.swift; sourceTree = "<group>"; };
 		A115C0DE0000000000000001 /* AllShortcutsPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllShortcutsPopover.swift; sourceTree = "<group>"; };
+		A17D02010000000000000000 /* AltitudeConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeConfiguration.swift; sourceTree = "<group>"; };
+		A17D02020000000000000000 /* AltitudeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeCoordinator.swift; sourceTree = "<group>"; };
+		A17D02030000000000000000 /* AltitudeFleetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeFleetService.swift; sourceTree = "<group>"; };
+		A17D02040000000000000000 /* AltitudeNextUpItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNextUpItem.swift; sourceTree = "<group>"; };
+		A17D02050000000000000000 /* AltitudeNextUpSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNextUpSnapshot.swift; sourceTree = "<group>"; };
+		A17D02060000000000000000 /* AltitudeNextUpStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNextUpStrip.swift; sourceTree = "<group>"; };
+		A17D02070000000000000000 /* AltitudeNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNotifications.swift; sourceTree = "<group>"; };
+		A17D02080000000000000000 /* AltitudePresenceStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudePresenceStage.swift; sourceTree = "<group>"; };
+		A17D02090000000000000000 /* AltitudePresenceStageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudePresenceStageTests.swift; sourceTree = "<group>"; };
 		F4350A130000000000000001 /* AppBundleIconPersistencePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/AppBundleIconPersistencePolicy.swift; sourceTree = "<group>"; };
 		80410000000000000000000A /* AppDelegate+AdjacentNavigationShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+AdjacentNavigationShortcut.swift"; sourceTree = "<group>"; };
 		C0DE45AC0000000000000002 /* AppDelegate+AgentChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+AgentChat.swift"; sourceTree = "<group>"; };
@@ -2929,6 +2948,7 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 		D0E0F0B5A1B2C3D4E5F60718 /* FindSelectionShortcutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindSelectionShortcutUITests.swift; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000001 /* FindTextFieldSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Find/FindTextFieldSupport.swift; sourceTree = "<group>"; };
 		C0F15A000000000000000002 /* FishShellIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FishShellIntegrationTests.swift; sourceTree = "<group>"; };
+		A17D020000000000000000F0 /* fleet-layer */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "fleet-layer"; sourceTree = SOURCE_ROOT; };
 		F0C05170000000000000001 /* FocusHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusHistory.swift; sourceTree = "<group>"; };
 		C4160A020000000000000002 /* FocusHistoryMenuInvalidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusHistoryMenuInvalidator.swift; sourceTree = "<group>"; };
 		5E55400000000000000000D2 /* FocusStealingResponderConformances.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusStealingResponderConformances.swift; sourceTree = "<group>"; };
@@ -4406,6 +4426,7 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 		A5001040 = {
 			isa = PBXGroup;
 			children = (
+				A17D020000000000000000F0 /* fleet-layer */,
 				A5001041 /* Sources */,
 				B9000003A1B2C3D4E5F60719 /* CLI */,
 				087C454FFF74443AB06942C3 /* Resources */,
@@ -4423,6 +4444,14 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 		A5001041 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				A17D02010000000000000000 /* AltitudeConfiguration.swift */,
+				A17D02020000000000000000 /* AltitudeCoordinator.swift */,
+				A17D02030000000000000000 /* AltitudeFleetService.swift */,
+				A17D02040000000000000000 /* AltitudeNextUpItem.swift */,
+				A17D02050000000000000000 /* AltitudeNextUpSnapshot.swift */,
+				A17D02060000000000000000 /* AltitudeNextUpStrip.swift */,
+				A17D02070000000000000000 /* AltitudeNotifications.swift */,
+				A17D02080000000000000000 /* AltitudePresenceStage.swift */,
 				A11CE0030000000000000001 /* AboutLicenseContent.swift */,
 				3023B1003023B1003023B100 /* ConfigSource.swift */,
 				3023B1013023B1013023B101 /* ConfigSettingsView.swift */,
@@ -5750,6 +5779,7 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 		F1000003A1B2C3D4E5F60718 /* cmuxTests */ = {
 			isa = PBXGroup;
 			children = (
+				A17D02090000000000000000 /* AltitudePresenceStageTests.swift */,
 				A11CE0020000000000000001 /* AboutLicensesResourceTests.swift */,
 				F2000001A1B2C3D4E5F60718 /* UpdatePillReleaseVisibilityTests.swift */,
 				F3000001A1B2C3D4E5F60718 /* CJKIMEInputTests.swift */,
@@ -6586,6 +6616,7 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 				A5001100 /* Assets.xcassets in Resources */,
 				A5001623 /* cmux.sdef in Resources */,
 				FEED0A00000000000000F007 /* feed-tui in Resources */,
+				A17D010000000000000000F0 /* fleet-layer in Resources */,
 				DA7A10CA710E000000000004 /* InfoPlist.xcstrings in Resources */,
 				A11CE0060000000000000001 /* LICENSE in Resources */,
 				DA7A10CA710E000000000003 /* Localizable.xcstrings in Resources */,
@@ -6850,6 +6881,14 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 				REE0CA0000000000000000F2 /* AIAccountCredentialSources.swift in Sources */,
 				REE0CA0000000000000000E2 /* AIAccountsClient.swift in Sources */,
 				A115C0DE0000000000000002 /* AllShortcutsPopover.swift in Sources */,
+				A17D01010000000000000000 /* AltitudeConfiguration.swift in Sources */,
+				A17D01020000000000000000 /* AltitudeCoordinator.swift in Sources */,
+				A17D01030000000000000000 /* AltitudeFleetService.swift in Sources */,
+				A17D01040000000000000000 /* AltitudeNextUpItem.swift in Sources */,
+				A17D01050000000000000000 /* AltitudeNextUpSnapshot.swift in Sources */,
+				A17D01060000000000000000 /* AltitudeNextUpStrip.swift in Sources */,
+				A17D01070000000000000000 /* AltitudeNotifications.swift in Sources */,
+				A17D01080000000000000000 /* AltitudePresenceStage.swift in Sources */,
 				F4350A110000000000000001 /* AppBundleIconPersistencePolicy.swift in Sources */,
 				804100000000000000000009 /* AppDelegate+AdjacentNavigationShortcut.swift in Sources */,
 				C0DE45AC0000000000000001 /* AppDelegate+AgentChat.swift in Sources */,
@@ -8235,6 +8274,7 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 				D3610B020000000000000001 /* AgentSessionAutoResumeSwiftTests.swift in Sources */,
 				A9E030000000000000000002 /* AgentSessionSocketSurfaceTests.swift in Sources */,
 				A9E050000000000000000002 /* AgentSessionWebRendererTests.swift in Sources */,
+				A17D01090000000000000000 /* AltitudePresenceStageTests.swift in Sources */,
 				725746692D9647948561044D /* AppDelegateBareSpaceShortcutRoutingTests.swift in Sources */,
 				A1B2C3D4E5F600000000CF01 /* AppDelegateDisplayConfigRestoreTests.swift in Sources */,
 				E3309A09 /* AppDelegateEqualizeSplitsShortcutTests.swift in Sources */,

@@ -13016,6 +13016,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let paletteUsesInlineTextHandling = commandPaletteShortcutWindow.map { isCommandPaletteMultilineTextResponderActive(in: $0) } ?? false
 
+        if commandPaletteInteractiveInTargetWindow,
+           event.keyCode == 48,
+           normalizedFlags.isEmpty,
+           let paletteWindow = commandPaletteShortcutWindow {
+            NotificationCenter.default.post(name: .altitudeExpandNeedsYou, object: paletteWindow)
+            return true
+        }
+
         let paletteSelectionDelta = contextAwareCommandPaletteSelectionDelta(for: event)
 
         if shouldRouteCommandPaletteSelectionNavigation(
@@ -13139,6 +13147,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             keyCode: event.keyCode
         ) {
             return true
+        }
+
+        // Altitude navigation is presentation-only. Explicit Option chords are
+        // global; bare/Cmd Return never displace a terminal or text editor's input.
+        if !commandPaletteEffectiveInTargetWindow {
+            let targetWindow = resolvedShortcutEventWindow(event) ?? event.window ?? shortcutRoutingActiveWindow
+            let isReturn = event.keyCode == 36 || event.keyCode == 76
+            if hasCommand, !hasOption, !hasControl, chars.lowercased() == "k" {
+                requestCommandPaletteSwitcher(preferredWindow: targetWindow, source: "shortcut.altitudePalette")
+                return true
+            }
+            if hasOption, !hasCommand, !hasControl {
+                let notification: Notification.Name? = isReturn
+                    ? .altitudeGoTop
+                    : chars == "2" ? .altitudeGoSecond
+                    : chars == "3" ? .altitudeGoThird
+                    : nil
+                if let notification {
+                    NotificationCenter.default.post(name: notification, object: targetWindow)
+                    return true
+                }
+            }
+            if isReturn, !hasOption, !hasControl {
+                let responder = targetWindow?.firstResponder
+                let isTyping = responder is NSTextView
+                    || responder is NSTextField
+                    || responder.map { cmuxOwningGhosttyView(for: $0) != nil } == true
+                    || responder.map { Self.cmuxOwningWebView(for: $0) != nil } == true
+                if !isTyping {
+                    NotificationCenter.default.post(
+                        name: hasCommand ? .altitudeGoPriority1B : .altitudeGoPriority1A,
+                        object: targetWindow
+                    )
+                    return true
+                }
+            }
         }
 
         if isPlainEscape {

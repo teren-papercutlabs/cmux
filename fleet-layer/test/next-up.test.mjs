@@ -54,6 +54,7 @@ test('recommends needs-you only, then uses priority and oldest wait as tiebreake
     'lead', 'understudy', 'oldest', 'unranked',
   ]);
   assert.equal(result.items[0].priority, '1A');
+  assert.equal(result.items[0].jumpSessionId, 'lead-session');
   assert.equal(result.items[0].why.label, 'needs you');
   assert.match(result.items[0].why.line, /decision required/i);
   assert.equal(result.items[0].waitSeconds, 120);
