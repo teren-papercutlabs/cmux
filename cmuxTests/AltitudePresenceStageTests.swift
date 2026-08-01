@@ -171,3 +171,61 @@ struct AltitudeCommandPaletteCorpusTests {
         #expect(entries == ["needs-you"])
     }
 }
+
+@Suite("Altitude floating next-up cards")
+struct AltitudeNextUpFloatPresentationTests {
+    private func item(
+        id: String,
+        tmuxSession: String?,
+        why: String = "Waiting for a decision on the reader controls"
+    ) -> AltitudeNextUpItem {
+        AltitudeNextUpItem(
+            agentId: "xianxing",
+            agentName: "Xing",
+            sessionId: id,
+            jumpSessionId: id,
+            tmuxSession: tmuxSession,
+            priority: nil,
+            classification: "actionable",
+            why: .init(label: "needs you", confidence: 1, line: why),
+            waitingSince: "2026-08-01T20:00:00Z",
+            waitSeconds: 300
+        )
+    }
+
+    @Test("an empty snapshot has no floating presentation footprint")
+    func emptySnapshotDoesNotRender() {
+        #expect(!AltitudeNextUpFloatPresentation.shouldRender(snapshot: .empty))
+        #expect(AltitudeNextUpFloatPresentation.cards(snapshot: .empty).isEmpty)
+    }
+
+    @Test("the float exposes at most three cards with session names")
+    func cardsUseSessionNamesAndCapAtThree() throws {
+        let snapshot = AltitudeNextUpSnapshot(
+            schemaVersion: 1,
+            collectedAt: "2026-08-01T20:05:00Z",
+            items: [
+                item(id: "one", tmuxSession: "kleya-hive-drive"),
+                item(id: "two", tmuxSession: "xianxing-altitude-third-pane"),
+                item(id: "three", tmuxSession: "rasim-resilience"),
+                item(id: "four", tmuxSession: "must-not-render"),
+            ],
+            processingCount: 4,
+            idleCount: 2
+        )
+
+        let cards = AltitudeNextUpFloatPresentation.cards(snapshot: snapshot)
+        #expect(cards.count == 3)
+        #expect(try #require(cards.first).sessionName == "kleya-hive-drive")
+        #expect(cards.map(\.shortcutHint) == ["⌥↩", "⌥2", "⌥3"])
+    }
+
+    @Test("the third pane is the stable anchor with a last-pane fallback")
+    func targetPaneIndex() {
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 0) == nil)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 1) == 0)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 2) == 1)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 3) == 2)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(paneCount: 5) == 2)
+    }
+}
