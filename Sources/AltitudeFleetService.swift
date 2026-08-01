@@ -43,9 +43,17 @@ actor AltitudeFleetService {
             process.standardOutput = stdout
             process.standardError = stderr
             try process.run()
+
+            // Drain both pipes while the child is running. Waiting first can
+            // deadlock as soon as either pipe fills: the child cannot exit
+            // until its write completes, while the parent is waiting for exit
+            // before it starts reading.
+            async let outputRead = stdout.fileHandleForReading.readToEnd()
+            async let errorRead = stderr.fileHandleForReading.readToEnd()
             process.waitUntilExit()
-            let output = stdout.fileHandleForReading.readDataToEndOfFile()
-            let error = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            let (outputData, errorData) = try await (outputRead, errorRead)
+            let output = outputData ?? Data()
+            let error = String(decoding: errorData ?? Data(), as: UTF8.self)
             guard process.terminationStatus == 0 else {
                 throw ServiceError.commandFailed(process.terminationStatus, error.trimmingCharacters(in: .whitespacesAndNewlines))
             }
