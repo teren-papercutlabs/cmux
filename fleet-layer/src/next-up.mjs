@@ -19,6 +19,20 @@ function specificMachineWhy(agent) {
   return { label: 'needs you', confidence: 1, line: summary };
 }
 
+function isPrincipalMain(agent) {
+  return [
+    agent.attention?.sessionId,
+    agent.jump?.sessionId,
+    agent.jump?.tmuxSession,
+  ].some((value) => text(value).toLowerCase().includes('-main-'));
+}
+
+function resolvedPriority(agent, priorityBySessionId) {
+  return priorityBySessionId[agent.attention?.sessionId]
+    ?? priorityBySessionId[agent.jump?.sessionId]
+    ?? null;
+}
+
 export class MachineStateWhyProvider {
   provide() {
     return {
@@ -39,7 +53,9 @@ export function resolveNextUp(snapshot, options = {}) {
   const whyProvider = options.whyProvider ?? new MachineStateWhyProvider();
 
   const items = snapshot.agents
-    .filter((agent) => agent.status === 'needs-you' && agent.attention?.sessionId)
+    .filter((agent) => agent.status === 'needs-you'
+      && agent.attention?.sessionId
+      && !isPrincipalMain(agent))
     .map((agent) => {
       const machineWhy = specificMachineWhy(agent);
       const why = machineWhy ?? whyProvider.provide({ agent, snapshot });
@@ -53,9 +69,7 @@ export function resolveNextUp(snapshot, options = {}) {
         sessionId: agent.attention.sessionId,
         jumpSessionId: agent.jump?.sessionId ?? null,
         tmuxSession: agent.jump?.tmuxSession ?? null,
-        priority: priorityBySessionId[agent.attention.sessionId]
-          ?? priorityBySessionId[agent.jump?.sessionId]
-          ?? null,
+        priority: resolvedPriority(agent, priorityBySessionId),
         classification: why.confidence > 0 ? 'actionable' : 'uncertain',
         why,
         waitingSince: agent.attention.createdAt ?? null,
@@ -69,11 +83,25 @@ export function resolveNextUp(snapshot, options = {}) {
       - (dateMs(right.waitingSince) ?? Number.POSITIVE_INFINITY)
     || left.agentId.localeCompare(right.agentId));
 
+  const processing = snapshot.agents
+    .filter((agent) => agent.status === 'running' && agent.jump?.sessionId)
+    .map((agent) => ({
+      agentId: agent.id,
+      agentName: agent.name,
+      sessionId: agent.jump.sessionId,
+      tmuxSession: agent.jump.tmuxSession ?? null,
+      priority: resolvedPriority(agent, priorityBySessionId),
+    }))
+    .sort((left, right) =>
+      priorityRank(left.priority) - priorityRank(right.priority)
+      || left.agentId.localeCompare(right.agentId));
+
   return {
     schemaVersion: 1,
     collectedAt: snapshot.collectedAt,
     items,
     processingCount: snapshot.agents.filter((agent) => agent.status === 'running').length,
     idleCount: snapshot.agents.filter((agent) => agent.status === 'idle').length,
+    processing,
   };
 }

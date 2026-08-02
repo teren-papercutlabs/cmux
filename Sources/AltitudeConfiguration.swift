@@ -3,7 +3,6 @@ import AppKit
 import Foundation
 
 struct AltitudeConfiguration: Equatable, Sendable {
-    static let flatPaletteKey = "Altitude.flatPalette.v1"
     static let readyBrightenSecondsKey = "Altitude.readyBrightenSeconds.v1"
     static let pulseSecondsKey = "Altitude.pulseSeconds.v1"
     static let viewerIDKey = "Altitude.viewerID.v1"
@@ -20,14 +19,12 @@ struct AltitudeConfiguration: Equatable, Sendable {
         return displayName.hasPrefix("Altitude")
     }
 
-    let flatPalette: Bool
     let readyBrightenSeconds: Int
     let pulseSeconds: Int
     let viewerID: String
     let restoreOfficeAttaches: Bool
 
     init(defaults: UserDefaults = .standard) {
-        flatPalette = defaults.bool(forKey: Self.flatPaletteKey)
         let brighten = defaults.integer(forKey: Self.readyBrightenSecondsKey)
         let pulse = defaults.integer(forKey: Self.pulseSecondsKey)
         let storedViewer = defaults.string(forKey: Self.viewerIDKey)?
@@ -38,6 +35,23 @@ struct AltitudeConfiguration: Equatable, Sendable {
         restoreOfficeAttaches = defaults.object(forKey: Self.restoreOfficeAttachesKey) == nil
             ? true
             : defaults.bool(forKey: Self.restoreOfficeAttachesKey)
+    }
+}
+
+enum AltitudeSeatTitle {
+    private static let prefixes = ["[1A] ", "[1B] "]
+
+    static func baseTitle(_ title: String) -> String {
+        for prefix in prefixes where title.hasPrefix(prefix) {
+            return String(title.dropFirst(prefix.count))
+        }
+        return title
+    }
+
+    static func resolved(baseTitle: String, role: String?) -> String {
+        let title = Self.baseTitle(baseTitle)
+        guard let role else { return title }
+        return "[\(role)] \(title)"
     }
 }
 
@@ -85,6 +99,21 @@ enum AltitudePriorityShortcut {
         case 2: return "1B"
         default: return nil
         }
+    }
+}
+
+enum AltitudeMenuShortcut {
+    static func matches(
+        isAltitudeEnabled: Bool,
+        characters: String,
+        keyCode: UInt16,
+        modifierFlags: NSEvent.ModifierFlags,
+        textInputOwnsEvent: Bool
+    ) -> Bool {
+        guard isAltitudeEnabled, !textInputOwnsEvent else { return false }
+        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags == [.command] else { return false }
+        return characters == "0" || keyCode == 29
     }
 }
 

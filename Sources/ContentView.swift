@@ -905,8 +905,7 @@ struct ContentView: View {
             viewerID: AltitudeConfiguration().viewerID
         )
     )
-    @AppStorage(AltitudeConfiguration.flatPaletteKey) private var altitudeFlatPalette = false
-    @State private var altitudeNeedsYouExpanded = false
+    @State private var altitudeMenuState = AltitudeMenuInteractionState()
     @State private var altitudeNavigationError: String?
     @State private var backgroundWorkspacePrimeCoordinator = BackgroundWorkspacePrimeCoordinator()
     @State private var workspacePresentationModeRuntimeCache = WorkspacePresentationModeRuntimeCache()
@@ -1053,9 +1052,8 @@ struct ContentView: View {
         let usesWorkspacePaneOverlay = TmuxOverlayExperimentSettings.target().usesWorkspacePaneOverlay
         let resolvedActivePaneBorderColorHex = WorkspaceTabColorSettings.normalizedHex(activePaneBorderColorHex)
         let shouldShowActivePaneBorder = shouldShowActivePaneBorder(for: workspace, colorHex: resolvedActivePaneBorderColorHex)
-        let shouldShowAltitudeNextUp = AltitudeConfiguration.isEnabled()
-            && AltitudeNextUpFloatPresentation.shouldRender(snapshot: altitudeCoordinator.snapshot)
-        guard usesWorkspacePaneOverlay || shouldShowActivePaneBorder || shouldShowAltitudeNextUp else { return nil }
+        let shouldShowAltitudeMenu = AltitudeConfiguration.isEnabled() && altitudeMenuState.isPresented
+        guard usesWorkspacePaneOverlay || shouldShowActivePaneBorder || shouldShowAltitudeMenu else { return nil }
 
         let layoutSnapshot = WorkspaceContentView.effectiveTmuxLayoutSnapshot(
             cachedSnapshot: workspace.tmuxLayoutSnapshot,
@@ -1151,24 +1149,20 @@ struct ContentView: View {
         }
 
         let altitudeTargetRect: CGRect?
-        if shouldShowAltitudeNextUp {
+        if shouldShowAltitudeMenu {
             let paneIds = workspace.bonsplitController.allPaneIds
-            let terminalPanelsByIndex: [(Int, PaneID, TerminalPanel)] = paneIds.enumerated().compactMap { index, paneId in
+            if let targetIndex = AltitudeMenuPresentation.targetPaneIndex(paneCount: paneIds.count) {
+                let paneId = paneIds[targetIndex]
                 let panel = workspace.bonsplitController.selectedTab(inPane: paneId)
                     .flatMap { workspace.panelIdFromSurfaceId($0.id) }
                     .flatMap { workspace.panels[$0] }
-                guard let terminalPanel = panel as? TerminalPanel else { return nil }
-                return (index, paneId, terminalPanel)
-            }
-            if let targetIndex = AltitudeNextUpFloatPresentation.targetPaneIndex(
-                terminalPaneIndices: terminalPanelsByIndex.map(\.0)
-            ),
-            let (_, paneId, panel) = terminalPanelsByIndex.first(where: { $0.0 == targetIndex }) {
                 let paneRect = WorkspaceContentView.tmuxWorkspacePaneWindowOverlayRect(
                     layoutSnapshot: layoutSnapshot,
                     paneId: paneId
                 )
-                let exactRect = contentView.flatMap { Self.tmuxWorkspacePaneExactRect(for: panel, in: $0) }
+                let exactRect = panel.flatMap { panel in
+                    contentView.flatMap { Self.tmuxWorkspacePaneExactRect(for: panel, in: $0) }
+                }
                 altitudeTargetRect = Self.preferredTmuxWorkspacePaneWindowOverlayRect(
                     exactRect: exactRect,
                     paneRect: paneRect
@@ -1190,8 +1184,7 @@ struct ContentView: View {
                 activePaneBorderColorHex: nil,
                 flashToken: workspace.tmuxWorkspaceFlashToken,
                 flashReason: workspace.tmuxWorkspaceFlashReason,
-                altitudeSnapshot: nil,
-                altitudeErrorMessage: nil,
+                altitudeMenu: nil,
                 altitudeTargetRect: nil
             )
         }
@@ -1204,8 +1197,14 @@ struct ContentView: View {
             activePaneBorderColorHex: activePaneBorderRect == nil ? nil : resolvedActivePaneBorderColorHex,
             flashToken: workspace.tmuxWorkspaceFlashToken,
             flashReason: workspace.tmuxWorkspaceFlashReason,
-            altitudeSnapshot: altitudeTargetRect == nil ? nil : altitudeCoordinator.snapshot,
-            altitudeErrorMessage: altitudeNavigationError ?? altitudeCoordinator.lastError,
+            altitudeMenu: altitudeTargetRect == nil ? nil : AltitudeMenuOverlayState(
+                snapshot: altitudeCoordinator.snapshot,
+                priorityRows: altitudePriorityMenuRows(),
+                selectedItemID: altitudeMenuState.selectedItemID,
+                arrival: altitudeMenuState.arrival,
+                quietSeconds: max(0, Int(Date().timeIntervalSince(altitudeMenuState.quietSince))),
+                errorMessage: altitudeNavigationError ?? altitudeCoordinator.lastError
+            ),
             altitudeTargetRect: altitudeTargetRect
         )
     }
@@ -2743,32 +2742,65 @@ struct ContentView: View {
             altitudeCoordinator.stop()
         })
 
-        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoTop)) { notification in
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeMenuOpen)) { notification in
             guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
-            altitudeGo(at: 0)
+            altitudeMenuState.open(snapshot: altitudeCoordinator.snapshot)
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
-        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoSecond)) { notification in
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeMenuDismiss)) { notification in
             guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
-            altitudeGo(at: 1)
+            altitudeMenuState.dismiss()
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
-        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoThird)) { notification in
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeMenuMoveSelection)) { notification in
             guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
-            altitudeGo(at: 2)
+            let items = AltitudeMenuPresentation.needsYouItems(snapshot: altitudeCoordinator.snapshot)
+            let delta = notification.userInfo?["delta"] as? Int ?? 0
+            altitudeMenuState.selectedItemID = AltitudeMenuPresentation.movedSelection(
+                currentID: altitudeMenuState.selectedItemID,
+                delta: delta,
+                items: items
+            )
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeMenuSelect)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow),
+                  let sessionID = notification.userInfo?["sessionID"] as? String else { return }
+            altitudeMenuState.selectedItemID = sessionID
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeMenuSubmit)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow),
+                  let selectedID = altitudeMenuState.selectedItemID,
+                  let item = AltitudeMenuPresentation.needsYouItems(snapshot: altitudeCoordinator.snapshot)
+                    .first(where: { $0.sessionId == selectedID }) else { return }
+            altitudeMenuState.dismiss()
+            altitudeGo(item)
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+        })
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeMenuJump)) { notification in
+            guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow),
+                  let sessionID = notification.userInfo?["sessionID"] as? String,
+                  let item = AltitudeMenuPresentation.needsYouItems(snapshot: altitudeCoordinator.snapshot)
+                    .first(where: { $0.sessionId == sessionID }) else { return }
+            altitudeMenuState.dismiss()
+            altitudeGo(item)
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
         view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoPriority1A)) { notification in
             guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
+            altitudeMenuState.dismiss()
             altitudeGoPriority("1A")
         })
         view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeGoPriority1B)) { notification in
             guard Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow) else { return }
+            altitudeMenuState.dismiss()
             altitudeGoPriority("1B")
         })
-        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeExpandNeedsYou)) { notification in
-            guard isCommandPalettePresented,
-                  Self.shouldHandleCommandPaletteRequest(observedWindow: observedWindow, requestedWindow: notification.object as? NSWindow, keyWindow: NSApp.keyWindow, mainWindow: NSApp.mainWindow),
-                  commandPaletteSelectedResultID() == "altitude.needs-you.expand" else { return }
-            altitudeNeedsYouExpanded = true
-            refreshCommandPaletteSearchCorpus(force: true)
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: .altitudeSeatConfigurationDidChange)) { _ in
+            for context in commandPaletteSwitcherWindowContexts() {
+                for workspace in context.tabManager.tabs { workspace.refreshAltitudeSeatTitles() }
+            }
         })
 
         view = AnyView(view.onChange(of: tabManager.selectedTabId) { newValue in
@@ -2902,7 +2934,8 @@ struct ContentView: View {
             refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
 
-        view = AnyView(view.onChange(of: altitudeCoordinator.snapshot) { _, _ in
+        view = AnyView(view.onChange(of: altitudeCoordinator.snapshot) { previous, snapshot in
+            altitudeMenuState.update(snapshot: snapshot, previous: previous)
             refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
 
@@ -5444,16 +5477,6 @@ struct ContentView: View {
         var hasher = Hasher()
         hasher.combine(CommandPaletteSwitcherFingerprintContext.fingerprint(windowContexts: fingerprintContexts))
         hasher.combine(UserDefaults.standard.data(forKey: PcLPrioritySwitcherConfiguration.defaultsKey))
-        hasher.combine(altitudeFlatPalette)
-        hasher.combine(altitudeNeedsYouExpanded)
-        hasher.combine(altitudeCoordinator.snapshot.collectedAt)
-        for item in altitudeCoordinator.snapshot.items {
-            hasher.combine(item.sessionId)
-            hasher.combine(item.priority)
-            hasher.combine(item.classification)
-            hasher.combine(item.why.line)
-            hasher.combine(item.waitSeconds)
-        }
         return hasher.finalize()
     }
 
@@ -5535,15 +5558,12 @@ struct ContentView: View {
             contexts: windowContexts,
             configuration: priorityConfiguration
         )
-        let needsYouEntries = commandPaletteAltitudeNeedsYouEntries(
-            startingRank: CommandPaletteFuzzyMatcher.preparedQuery(matchingQuery).isEmpty ? priorityEntries.count : 0
-        )
         let altitudeEnabled = AltitudeConfiguration.isEnabled()
         let altitudeEntries = altitudeEnabled
             ? AltitudePaletteCorpus.orderedEntries(
                 query: matchingQuery,
                 priorityEntries: priorityEntries,
-                needsYouEntries: needsYouEntries
+                needsYouEntries: []
             )
             : []
         if altitudeEnabled, CommandPaletteFuzzyMatcher.preparedQuery(matchingQuery).isEmpty {
@@ -5715,67 +5735,6 @@ struct ContentView: View {
         return entries
     }
 
-    private func commandPaletteAltitudeNeedsYouEntries(startingRank: Int) -> [CommandPaletteCommand] {
-        let items = altitudeCoordinator.snapshot.items
-        let visibleCount = altitudeFlatPalette || altitudeNeedsYouExpanded ? items.count : min(3, items.count)
-        var entries = Array(items.prefix(visibleCount).enumerated()).map { index, item in
-            CommandPaletteCommand(
-                id: "altitude.needs-you.\(item.sessionId)",
-                rank: startingRank + index,
-                title: "\(item.priority.map { "\($0) · " } ?? "")\(item.agentName)",
-                subtitle: "\(item.why.line) · \(altitudeWaitLabel(item.waitSeconds))",
-                shortcutHint: index == 0 ? "⌥↩" : index < 3 ? "⌥\(index + 1)" : nil,
-                kindLabel: item.classification == "uncertain"
-                    ? String(localized: "altitude.palette.uncertain", defaultValue: "Uncertain")
-                    : String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
-                sectionLabel: String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
-                keywords: ["needs you", item.agentName, item.why.label, item.why.line],
-                dismissOnRun: true,
-                action: { altitudeGo(item) }
-            )
-        }
-        if !altitudeFlatPalette, items.count > visibleCount {
-            let remaining = items.count - visibleCount
-            entries.append(CommandPaletteCommand(
-                id: "altitude.needs-you.expand",
-                rank: startingRank + entries.count,
-                title: String(
-                    format: String(localized: "altitude.palette.more", defaultValue: "%lld more — tab to expand"),
-                    Int64(remaining)
-                ),
-                subtitle: "",
-                shortcutHint: "⇥",
-                kindLabel: nil,
-                sectionLabel: String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
-                keywords: ["more", "expand", "tab"],
-                dismissOnRun: false,
-                action: {
-                    altitudeNeedsYouExpanded = true
-                    refreshCommandPaletteSearchCorpus(force: true)
-                }
-            ))
-        }
-        entries.append(CommandPaletteCommand(
-            id: "altitude.needs-you.toggle-flat",
-            rank: startingRank + entries.count,
-            title: altitudeFlatPalette
-                ? String(localized: "altitude.palette.fold", defaultValue: "Use folded needs-you view")
-                : String(localized: "altitude.palette.flat", defaultValue: "Use flat needs-you view"),
-            subtitle: String(localized: "altitude.palette.viewSetting", defaultValue: "Palette setting"),
-            shortcutHint: nil,
-            kindLabel: nil,
-            sectionLabel: String(localized: "altitude.palette.needsYou", defaultValue: "Needs you"),
-            keywords: ["flat", "folded", "setting"],
-            dismissOnRun: false,
-            action: {
-                altitudeFlatPalette.toggle()
-                altitudeNeedsYouExpanded = false
-                refreshCommandPaletteSearchCorpus(force: true)
-            }
-        ))
-        return entries
-    }
-
     private func altitudePriorityBySessionId() -> [String: String] {
         let configuration = PcLPrioritySwitcherConfiguration.load()
         var priorities: [String: String] = [:]
@@ -5795,12 +5754,63 @@ struct ContentView: View {
         return priorities
     }
 
-    private func altitudeGo(at index: Int) {
-        guard altitudeCoordinator.snapshot.items.indices.contains(index) else {
-            altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
-            return
+    private func altitudePriorityMenuRows() -> [AltitudePriorityMenuRow] {
+        let configuration = PcLPrioritySwitcherConfiguration.load()
+        let roles: [(String, UUID?)] = [
+            ("1A", configuration.leadSurfaceId),
+            ("1B", configuration.understudySurfaceId),
+        ]
+        return roles.map { entry in
+            let (role, surfaceID) = entry
+            guard let surfaceID else {
+                return AltitudePriorityMenuRow(
+                    role: role,
+                    sessionName: "—",
+                    state: String(localized: "altitude.menu.unassigned", defaultValue: "unassigned"),
+                    detail: String(localized: "altitude.menu.noNeed", defaultValue: "no need")
+                )
+            }
+            for context in commandPaletteSwitcherWindowContexts() {
+                for workspace in context.tabManager.tabs {
+                    guard let panel = workspace.panels[surfaceID] else { continue }
+                    let sessionName = AltitudeSeatTitle.baseTitle(
+                        workspace.panelTitle(panelId: surfaceID) ?? panel.displayTitle
+                    )
+                    if let needsYou = altitudeCoordinator.snapshot.items.first(where: { $0.priority == role }) {
+                        return AltitudePriorityMenuRow(
+                            role: role,
+                            sessionName: sessionName,
+                            state: String(localized: "altitude.menu.state.needsYou", defaultValue: "needs you"),
+                            detail: String(
+                                format: String(localized: "altitude.menu.waiting", defaultValue: "waiting %@"),
+                                altitudeMenuDurationLabel(needsYou.waitSeconds)
+                            )
+                        )
+                    }
+                    let processing = altitudeCoordinator.snapshot.processing.contains(where: { $0.priority == role })
+                    return AltitudePriorityMenuRow(
+                        role: role,
+                        sessionName: sessionName,
+                        state: processing
+                            ? String(localized: "altitude.menu.working", defaultValue: "working")
+                            : String(localized: "altitude.presence.ready", defaultValue: "ready"),
+                        detail: String(localized: "altitude.menu.noNeed", defaultValue: "no need")
+                    )
+                }
+            }
+            return AltitudePriorityMenuRow(
+                role: role,
+                sessionName: "—",
+                state: String(localized: "altitude.menu.unavailable", defaultValue: "unavailable"),
+                detail: String(localized: "altitude.menu.noNeed", defaultValue: "no need")
+            )
         }
-        altitudeGo(altitudeCoordinator.snapshot.items[index])
+    }
+
+    private func altitudeMenuDurationLabel(_ seconds: Int) -> String {
+        if seconds < 60 { return String(localized: "altitude.wait.now", defaultValue: "now") }
+        if seconds < 3_600 { return "\(max(1, seconds / 60))m" }
+        return "\(max(1, seconds / 3_600))h"
     }
 
     private func altitudeGoPriority(_ priority: String) {
@@ -5867,14 +5877,6 @@ struct ContentView: View {
             }
         }
         altitudeNavigationError = String(localized: "altitude.navigation.sessionNotFound", defaultValue: "Altitude could not locate that session in this window")
-    }
-
-    private func altitudeWaitLabel(_ seconds: Int) -> String {
-        guard seconds >= 60 else { return String(localized: "altitude.wait.now", defaultValue: "now") }
-        return String(
-            format: String(localized: "altitude.wait.minutes", defaultValue: "%lldm waiting"),
-            Int64(max(1, seconds / 60))
-        )
     }
 
     private func commandPaletteGroup(

@@ -13016,21 +13016,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let paletteUsesInlineTextHandling = commandPaletteShortcutWindow.map { isCommandPaletteMultilineTextResponderActive(in: $0) } ?? false
 
-        if commandPaletteInteractiveInTargetWindow,
-           event.keyCode == 48,
-           normalizedFlags.isEmpty,
-           let paletteWindow = commandPaletteShortcutWindow,
-           let windowID = mainWindowId(for: paletteWindow) {
-            let selection = commandPaletteSelectionIndex(windowId: windowID)
-            let results = commandPaletteSnapshot(windowId: windowID).results
-            guard results.indices.contains(selection),
-                  results[selection].commandId == "altitude.needs-you.expand" else {
-                return false
-            }
-            NotificationCenter.default.post(name: .altitudeExpandNeedsYou, object: paletteWindow)
-            return true
-        }
-
         let paletteSelectionDelta = contextAwareCommandPaletteSelectionDelta(for: event)
 
         if shouldRouteCommandPaletteSelectionNavigation(
@@ -13156,29 +13141,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return true
         }
 
-        // Altitude navigation is presentation-only. Option navigation yields to
-        // every typing surface. Cmd+1/Cmd+2 replace cmux's existing global numbered
-        // workspace shortcuts, but still yield to AppKit text input. Cmd+K remains
-        // on the existing configurable switcher action above.
+        // Altitude navigation is presentation-only. Cmd+0 owns the third-pane
+        // menu, while Cmd+1/Cmd+2 retain the two anointed jumps. All three yield
+        // to AppKit text input and remain global from terminal surfaces.
         if AltitudeConfiguration.isEnabled(), !commandPaletteEffectiveInTargetWindow {
             let targetWindow = resolvedShortcutEventWindow(event) ?? event.window ?? shortcutRoutingActiveWindow
             let isReturn = event.keyCode == 36 || event.keyCode == 76
             let responder = targetWindow?.firstResponder
             let textInputOwnsEvent = responder is NSTextView || responder is NSTextField
-            let isTyping = responder is NSTextView
-                || responder is NSTextField
-                || responder.map { cmuxOwningGhosttyView(for: $0) != nil } == true
-                || responder.map { NSWindow.cmuxOwningWebView(for: $0) != nil } == true
-            if hasOption, !hasCommand, !hasControl, !isTyping {
-                let notification: Notification.Name? = isReturn
-                    ? .altitudeGoTop
-                    : chars == "2" ? .altitudeGoSecond
-                    : chars == "3" ? .altitudeGoThird
-                    : nil
-                if let notification {
-                    NotificationCenter.default.post(name: notification, object: targetWindow)
+
+            if let targetWindow,
+               WindowTmuxWorkspacePaneOverlayController.controller(
+                    for: targetWindow,
+                    createIfNeeded: false
+               )?.isAltitudeMenuPresented == true {
+                if isPlainEscape {
+                    NotificationCenter.default.post(name: .altitudeMenuDismiss, object: targetWindow)
                     return true
                 }
+                if !hasCommand, !hasOption, !hasControl, !event.modifierFlags.contains(.shift),
+                   event.keyCode == 125 || event.keyCode == 126 {
+                    NotificationCenter.default.post(
+                        name: .altitudeMenuMoveSelection,
+                        object: targetWindow,
+                        userInfo: ["delta": event.keyCode == 125 ? 1 : -1]
+                    )
+                    return true
+                }
+                if isReturn, !hasCommand, !hasOption, !hasControl {
+                    NotificationCenter.default.post(name: .altitudeMenuSubmit, object: targetWindow)
+                    return true
+                }
+            }
+
+            let menuIgnoringTextInput = AltitudeMenuShortcut.matches(
+                isAltitudeEnabled: true,
+                characters: chars,
+                keyCode: event.keyCode,
+                modifierFlags: event.modifierFlags,
+                textInputOwnsEvent: false
+            )
+            if menuIgnoringTextInput, textInputOwnsEvent { return false }
+            if AltitudeMenuShortcut.matches(
+                isAltitudeEnabled: true,
+                characters: chars,
+                keyCode: event.keyCode,
+                modifierFlags: event.modifierFlags,
+                textInputOwnsEvent: textInputOwnsEvent
+            ), let targetWindow {
+                NotificationCenter.default.post(name: .altitudeMenuOpen, object: targetWindow)
+                return true
             }
             let priorityIgnoringTextInput = AltitudePriorityShortcut.priority(
                 isAltitudeEnabled: true,
@@ -13196,12 +13208,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 keyCode: event.keyCode,
                 modifierFlags: event.modifierFlags,
                 textInputOwnsEvent: textInputOwnsEvent
-            ) {
-                NotificationCenter.default.post(
-                    name: priority == "1B" ? .altitudeGoPriority1B : .altitudeGoPriority1A,
-                    object: targetWindow
-                )
-                return true
+            ), let targetWindow {
+                let configuration = PcLPrioritySwitcherConfiguration.load()
+                if AltitudePriorityFocusTarget.surfaceID(
+                    for: priority,
+                    configuration: configuration
+                ) != nil {
+                    NotificationCenter.default.post(
+                        name: priority == "1B" ? .altitudeGoPriority1B : .altitudeGoPriority1A,
+                        object: targetWindow
+                    )
+                    return true
+                }
+                // An unassigned Altitude jump is not an action. Fall through to
+                // cmux's ordinary numbered-tab shortcut path.
             }
         }
 

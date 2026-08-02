@@ -3125,10 +3125,6 @@ final class Workspace: Identifiable, ObservableObject {
         bonsplitController.tabContextMoveDestinationsProvider = { [weak self] tabId, _ in
             self?.bonsplitTabMoveDestinations(for: tabId) ?? []
         }
-        bonsplitController.tabBadgeProvider = { [weak self] tabId, _ in
-            guard let self, let panelID = self.panelIdFromSurfaceId(tabId) else { return nil }
-            return self.altitudeSeatLabel(for: panelID)
-        }
         bonsplitController.tabContextPrioritySeatAvailabilityProvider = { [weak self] tabID, _ in
             guard let self else { return false }
             return AltitudeConfiguration.isEnabled() && self.panelIdFromSurfaceId(tabID) != nil
@@ -3971,11 +3967,14 @@ final class Workspace: Identifiable, ObservableObject {
     func resolvedPanelTitle(panelId: UUID, fallback: String) -> String {
         let trimmedFallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallbackTitle = trimmedFallback.isEmpty ? "Tab" : trimmedFallback
+        let baseTitle: String
         if let custom = panelCustomTitles[panelId]?.trimmingCharacters(in: .whitespacesAndNewlines),
            !custom.isEmpty {
-            return custom
+            baseTitle = custom
+        } else {
+            baseTitle = fallbackTitle
         }
-        return fallbackTitle
+        return AltitudeSeatTitle.resolved(baseTitle: baseTitle, role: altitudeSeatLabel(for: panelId))
     }
 
     private func syncPinnedStateForTab(_ tabId: TabID, panelId: UUID) {
@@ -4249,6 +4248,18 @@ final class Workspace: Identifiable, ObservableObject {
         return nil
     }
 
+    func refreshAltitudeSeatTitles() {
+        for (panelID, panel) in panels {
+            guard let tabID = surfaceIdFromPanelId(panelID) else { continue }
+            let baseTitle = panelTitles[panelID] ?? panel.displayTitle
+            bonsplitController.updateTab(
+                tabID,
+                title: resolvedPanelTitle(panelId: panelID, fallback: baseTitle)
+            )
+        }
+        bonsplitController.invalidateHostProvidedChrome()
+    }
+
     func anointAltitudeSeat(_ role: PcLPrioritySwitcherConfiguration.Role, panelID: UUID) {
         guard panels[panelID] != nil else { return }
         let paneIDs = bonsplitController.allPaneIds
@@ -4281,6 +4292,7 @@ final class Workspace: Identifiable, ObservableObject {
         }
         bonsplitController.invalidateHostProvidedChrome()
         objectWillChange.send()
+        NotificationCenter.default.post(name: .altitudeSeatConfigurationDidChange, object: self)
     }
 
     func clearAltitudeSeat(for panelID: UUID) {
@@ -4291,6 +4303,7 @@ final class Workspace: Identifiable, ObservableObject {
         setPanelPinned(panelId: panelID, pinned: false)
         bonsplitController.invalidateHostProvidedChrome()
         objectWillChange.send()
+        NotificationCenter.default.post(name: .altitudeSeatConfigurationDidChange, object: self)
     }
 
     func setPanelPinned(panelId: UUID, pinned: Bool) {
