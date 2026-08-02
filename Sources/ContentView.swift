@@ -5804,29 +5804,27 @@ struct ContentView: View {
     }
 
     private func altitudeGoPriority(_ priority: String) {
-        guard let item = altitudeCoordinator.snapshot.items.first(where: { $0.priority == priority }) else {
-            let configuration = PcLPrioritySwitcherConfiguration.load()
-            let surfaceID = priority == "1A" ? configuration.leadSurfaceId : configuration.understudySurfaceId
-            guard let surfaceID else {
-                altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
-                return
-            }
-            for context in commandPaletteSwitcherWindowContexts() {
-                for workspace in context.tabManager.tabs where workspace.panels[surfaceID] != nil {
-                    focusCommandPaletteSwitcherSurfaceTarget(
-                        windowId: context.windowId,
-                        tabManager: context.tabManager,
-                        workspaceId: workspace.id,
-                        panelId: surfaceID
-                    )
-                    altitudeNavigationError = nil
-                    return
-                }
-            }
+        let configuration = PcLPrioritySwitcherConfiguration.load()
+        guard let surfaceID = AltitudePriorityFocusTarget.surfaceID(
+            for: priority,
+            configuration: configuration
+        ) else {
             altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
             return
         }
-        altitudeGo(item)
+        for context in commandPaletteSwitcherWindowContexts() {
+            for workspace in context.tabManager.tabs where workspace.panels[surfaceID] != nil {
+                focusCommandPaletteSwitcherSurfaceTarget(
+                    windowId: context.windowId,
+                    tabManager: context.tabManager,
+                    workspaceId: workspace.id,
+                    panelId: surfaceID
+                )
+                altitudeNavigationError = nil
+                return
+            }
+        }
+        altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
     }
 
     private func altitudeGo(_ item: AltitudeNextUpItem) {

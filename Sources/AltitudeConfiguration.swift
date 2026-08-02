@@ -88,6 +88,19 @@ enum AltitudePriorityShortcut {
     }
 }
 
+enum AltitudePriorityFocusTarget {
+    static func surfaceID(
+        for priority: String,
+        configuration: PcLPrioritySwitcherConfiguration
+    ) -> UUID? {
+        switch priority {
+        case "1A": return configuration.leadSurfaceId
+        case "1B": return configuration.understudySurfaceId
+        default: return nil
+        }
+    }
+}
+
 enum AltitudeOfficeAttachResumePolicy {
     static let bindingKind = "altitude-office-attach"
 
