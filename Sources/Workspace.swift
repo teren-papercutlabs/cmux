@@ -955,17 +955,34 @@ extension Workspace {
         )
     }
 
-    nonisolated private static func resumeBindingForSessionRestore(
+    // Internal (not private) and config-injectable so tests can exercise THIS
+    // wiring — the review found the pure-function tests stay green with the
+    // gate deleted. Defaults preserve the production read paths.
+    nonisolated static func resumeBindingForSessionRestore(
         _ binding: SurfaceResumeBindingSnapshot?,
-        restorableAgent: SessionRestorableAgentSnapshot?
+        restorableAgent: SessionRestorableAgentSnapshot?,
+        isAltitudeEnabled: Bool = AltitudeConfiguration.isEnabled(),
+        restoreOfficeAttaches: Bool? = nil,
+        homeDirectory: String = NSHomeDirectory()
     ) -> SurfaceResumeBindingSnapshot? {
         if binding?.kind == AltitudeOfficeAttachResumePolicy.bindingKind {
-            let altitudeConfiguration = AltitudeConfiguration()
+            let restoreDial = restoreOfficeAttaches ?? AltitudeConfiguration().restoreOfficeAttaches
             guard AltitudeOfficeAttachResumePolicy.allowsRestore(
                 bindingKind: binding?.kind,
-                isAltitudeEnabled: AltitudeConfiguration.isEnabled(),
-                restoreOfficeAttaches: altitudeConfiguration.restoreOfficeAttaches
+                isAltitudeEnabled: isAltitudeEnabled,
+                restoreOfficeAttaches: restoreDial
             ) else {
+                return nil
+            }
+            // Replay-time allowlist: the stored command re-validates against the
+            // capture-time recognizer before it may auto-execute. Snapshot JSON
+            // is persisted state, not a trust boundary.
+            guard let binding,
+                  AltitudeOfficeAttachResumeParser.isRecognizedStoredCommand(
+                    binding.command,
+                    checkpointId: binding.checkpointId,
+                    homeDirectory: homeDirectory
+                  ) else {
                 return nil
             }
         }

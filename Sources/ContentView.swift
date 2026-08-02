@@ -5805,24 +5805,29 @@ struct ContentView: View {
 
     private func altitudeGoPriority(_ priority: String) {
         let configuration = PcLPrioritySwitcherConfiguration.load()
-        guard let surfaceID = AltitudePriorityFocusTarget.surfaceID(
+        if let surfaceID = AltitudePriorityFocusTarget.surfaceID(
             for: priority,
             configuration: configuration
-        ) else {
-            altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
-            return
-        }
-        for context in commandPaletteSwitcherWindowContexts() {
-            for workspace in context.tabManager.tabs where workspace.panels[surfaceID] != nil {
-                focusCommandPaletteSwitcherSurfaceTarget(
-                    windowId: context.windowId,
-                    tabManager: context.tabManager,
-                    workspaceId: workspace.id,
-                    panelId: surfaceID
-                )
-                altitudeNavigationError = nil
-                return
+        ) {
+            for context in commandPaletteSwitcherWindowContexts() {
+                for workspace in context.tabManager.tabs where workspace.panels[surfaceID] != nil {
+                    focusCommandPaletteSwitcherSurfaceTarget(
+                        windowId: context.windowId,
+                        tabManager: context.tabManager,
+                        workspaceId: workspace.id,
+                        panelId: surfaceID
+                    )
+                    altitudeNavigationError = nil
+                    return
+                }
             }
+        }
+        // Configured surface id can go stale (restore-into-live reassigns panel
+        // ids), so an unresolved seat falls back to live coordinator evidence
+        // before surfacing an error — the anointed hotkeys must not go dead.
+        if let item = altitudeCoordinator.snapshot.items.first(where: { $0.priority == priority }) {
+            altitudeGo(item)
+            return
         }
         altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
     }

