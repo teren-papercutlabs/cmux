@@ -20,6 +20,7 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
     let flashReason: WorkspaceAttentionFlashReason?
     let altitudeMenu: AltitudeMenuOverlayState?
     let altitudeTargetRect: CGRect?
+    let altitudeMenuIsPresented: Bool
 
     init(
         workspaceId: UUID,
@@ -30,7 +31,8 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
         flashToken: UInt64,
         flashReason: WorkspaceAttentionFlashReason?,
         altitudeMenu: AltitudeMenuOverlayState? = nil,
-        altitudeTargetRect: CGRect? = nil
+        altitudeTargetRect: CGRect? = nil,
+        altitudeMenuIsPresented: Bool = false
     ) {
         self.workspaceId = workspaceId
         self.unreadRects = unreadRects
@@ -41,5 +43,6 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
         self.flashReason = flashReason
         self.altitudeMenu = altitudeMenu
         self.altitudeTargetRect = altitudeTargetRect
+        self.altitudeMenuIsPresented = altitudeMenuIsPresented
     }
 }

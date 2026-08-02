@@ -1175,7 +1175,7 @@ struct ContentView: View {
         }
 
         if unreadRects.isEmpty, flashRect == nil, activePaneBorderRect == nil, altitudeTargetRect == nil {
-            guard usesWorkspacePaneOverlay else { return nil }
+            guard usesWorkspacePaneOverlay || shouldShowAltitudeMenu else { return nil }
             return TmuxWorkspacePaneOverlayRenderState(
                 workspaceId: workspace.id,
                 unreadRects: [],
@@ -1185,7 +1185,8 @@ struct ContentView: View {
                 flashToken: workspace.tmuxWorkspaceFlashToken,
                 flashReason: workspace.tmuxWorkspaceFlashReason,
                 altitudeMenu: nil,
-                altitudeTargetRect: nil
+                altitudeTargetRect: nil,
+                altitudeMenuIsPresented: shouldShowAltitudeMenu
             )
         }
 
@@ -1205,7 +1206,8 @@ struct ContentView: View {
                 quietSeconds: max(0, Int(Date().timeIntervalSince(altitudeMenuState.quietSince))),
                 errorMessage: altitudeNavigationError ?? altitudeCoordinator.lastError
             ),
-            altitudeTargetRect: altitudeTargetRect
+            altitudeTargetRect: altitudeTargetRect,
+            altitudeMenuIsPresented: shouldShowAltitudeMenu
         )
     }
 
@@ -2804,6 +2806,10 @@ struct ContentView: View {
         })
 
         view = AnyView(view.onChange(of: tabManager.selectedTabId) { newValue in
+            if altitudeMenuState.isPresented {
+                altitudeMenuState.workspaceDidChange()
+                refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+            }
 #if DEBUG
             if let snapshot = tabManager.debugCurrentWorkspaceSwitchSnapshot() {
                 let dtMs = (CACurrentMediaTime() - snapshot.startedAt) * 1000
@@ -5783,7 +5789,7 @@ struct ContentView: View {
                             state: String(localized: "altitude.menu.state.needsYou", defaultValue: "needs you"),
                             detail: String(
                                 format: String(localized: "altitude.menu.waiting", defaultValue: "waiting %@"),
-                                altitudeMenuDurationLabel(needsYou.waitSeconds)
+                                AltitudeMenuDurationLabel.waiting(needsYou.waitSeconds)
                             )
                         )
                     }
@@ -5805,12 +5811,6 @@ struct ContentView: View {
                 detail: String(localized: "altitude.menu.noNeed", defaultValue: "no need")
             )
         }
-    }
-
-    private func altitudeMenuDurationLabel(_ seconds: Int) -> String {
-        if seconds < 60 { return String(localized: "altitude.wait.now", defaultValue: "now") }
-        if seconds < 3_600 { return "\(max(1, seconds / 60))m" }
-        return "\(max(1, seconds / 3_600))h"
     }
 
     private func altitudeGoPriority(_ priority: String) {

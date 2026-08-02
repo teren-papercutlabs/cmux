@@ -44,16 +44,23 @@ struct AltitudeMenuInteractionState: Equatable {
         selectedItemID = nil
     }
 
+    mutating func workspaceDidChange() {
+        dismiss()
+    }
+
     mutating func update(
         snapshot: AltitudeNextUpSnapshot,
         previous: AltitudeNextUpSnapshot,
         now: Date = Date()
     ) {
         let items = AltitudeMenuPresentation.needsYouItems(snapshot: snapshot)
-        if !items.isEmpty || !AltitudeMenuPresentation.needsYouItems(snapshot: previous).isEmpty {
+        let previousItems = AltitudeMenuPresentation.needsYouItems(snapshot: previous)
+        if !items.isEmpty || (!previousItems.isEmpty && items.isEmpty) {
             quietSince = now
         }
         guard isPresented else { return }
+        arrival = AltitudeMenuPresentation.arrival(previous: previous, current: snapshot)
+        previousSnapshot = snapshot
         if !items.contains(where: { $0.sessionId == selectedItemID }) {
             selectedItemID = items.first?.sessionId
         }
@@ -283,7 +290,7 @@ struct AltitudeMenuView: View {
                     defaultValue: "%lld processing · quietest in %@"
                 ),
                 Int64(snapshot.processingCount),
-                durationLabel(quietSeconds)
+                AltitudeMenuDurationLabel.quiet(quietSeconds)
             ))
             .foregroundStyle(.tertiary)
         }
@@ -295,7 +302,7 @@ struct AltitudeMenuView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(String(
                 format: String(localized: "altitude.menu.processing", defaultValue: "PROCESSING · %lld"),
-                Int64(snapshot.processingCount)
+                Int64(snapshot.processing.count)
             ))
             .foregroundStyle(.tertiary)
             ForEach(snapshot.processing.prefix(5)) { item in
@@ -358,20 +365,14 @@ struct AltitudeMenuView: View {
             ),
             change,
             waiting,
-            durationLabel(seconds)
+            AltitudeMenuDurationLabel.waiting(seconds)
         )
     }
 
     private func waitLabel(_ seconds: Int) -> String {
         String(
             format: String(localized: "altitude.menu.waiting", defaultValue: "waiting %@"),
-            durationLabel(seconds)
+            AltitudeMenuDurationLabel.waiting(seconds)
         )
-    }
-
-    private func durationLabel(_ seconds: Int) -> String {
-        if seconds < 60 { return String(localized: "altitude.wait.now", defaultValue: "now") }
-        if seconds < 3_600 { return "\(max(1, seconds / 60))m" }
-        return "\(max(1, seconds / 3_600))h"
     }
 }

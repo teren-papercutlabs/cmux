@@ -22,7 +22,7 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
     }
 
     var isAltitudeMenuPresented: Bool {
-        lastRenderState?.altitudeMenu != nil
+        lastRenderState?.altitudeMenuIsPresented == true
     }
 
     static func controller(for window: NSWindow, createIfNeeded: Bool) -> WindowTmuxWorkspacePaneOverlayController? {

@@ -53,6 +53,18 @@ enum AltitudeSeatTitle {
         guard let role else { return title }
         return "[\(role)] \(title)"
     }
+
+    static func role(
+        isAltitudeEnabled: Bool,
+        panelID: UUID,
+        leadSurfaceID: UUID?,
+        understudySurfaceID: UUID?
+    ) -> String? {
+        guard isAltitudeEnabled else { return nil }
+        if leadSurfaceID == panelID { return "1A" }
+        if understudySurfaceID == panelID { return "1B" }
+        return nil
+    }
 }
 
 enum AltitudePaletteCorpus {
@@ -112,8 +124,62 @@ enum AltitudeMenuShortcut {
     ) -> Bool {
         guard isAltitudeEnabled, !textInputOwnsEvent else { return false }
         let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+            .subtracting([.capsLock, .numericPad, .function])
         guard flags == [.command] else { return false }
         return characters == "0" || keyCode == 29
+    }
+}
+
+enum AltitudeMenuNavigationAction: Equatable {
+    case dismiss
+    case move(Int)
+    case submit
+
+    static func resolve(
+        isPresented: Bool,
+        keyCode: UInt16,
+        modifierFlags: NSEvent.ModifierFlags,
+        textInputOwnsEvent: Bool
+    ) -> Self? {
+        guard isPresented, !textInputOwnsEvent else { return nil }
+        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+            .subtracting([.capsLock, .numericPad, .function])
+        switch (keyCode, flags) {
+        case (53, []): return .dismiss
+        case (125, []): return .move(1)
+        case (126, []): return .move(-1)
+        case (36, []), (76, []): return .submit
+        default: return nil
+        }
+    }
+}
+
+enum AltitudeMenuDurationLabel {
+    static func waiting(_ seconds: Int) -> String {
+        guard seconds >= 60 else {
+            return String(localized: "altitude.wait.now", defaultValue: "now")
+        }
+        return compact(seconds)
+    }
+
+    static func quiet(_ seconds: Int) -> String {
+        guard seconds >= 60 else {
+            return String(localized: "altitude.menu.duration.lessThanMinute", defaultValue: "<1m")
+        }
+        return compact(seconds)
+    }
+
+    private static func compact(_ seconds: Int) -> String {
+        if seconds < 3_600 {
+            return String(
+                format: String(localized: "altitude.menu.duration.minutes", defaultValue: "%lldm"),
+                Int64(max(1, seconds / 60))
+            )
+        }
+        return String(
+            format: String(localized: "altitude.menu.duration.hours", defaultValue: "%lldh"),
+            Int64(max(1, seconds / 3_600))
+        )
     }
 }
 

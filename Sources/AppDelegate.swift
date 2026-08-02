@@ -13146,32 +13146,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // to AppKit text input and remain global from terminal surfaces.
         if AltitudeConfiguration.isEnabled(), !commandPaletteEffectiveInTargetWindow {
             let targetWindow = resolvedShortcutEventWindow(event) ?? event.window ?? shortcutRoutingActiveWindow
-            let isReturn = event.keyCode == 36 || event.keyCode == 76
             let responder = targetWindow?.firstResponder
             let textInputOwnsEvent = responder is NSTextView || responder is NSTextField
 
             if let targetWindow,
-               WindowTmuxWorkspacePaneOverlayController.controller(
+               let action = AltitudeMenuNavigationAction.resolve(
+                   isPresented: WindowTmuxWorkspacePaneOverlayController.controller(
                     for: targetWindow,
                     createIfNeeded: false
-               )?.isAltitudeMenuPresented == true {
-                if isPlainEscape {
+                   )?.isAltitudeMenuPresented == true,
+                   keyCode: event.keyCode,
+                   modifierFlags: event.modifierFlags,
+                   textInputOwnsEvent: textInputOwnsEvent
+               ) {
+                switch action {
+                case .dismiss:
                     NotificationCenter.default.post(name: .altitudeMenuDismiss, object: targetWindow)
-                    return true
-                }
-                if !hasCommand, !hasOption, !hasControl, !event.modifierFlags.contains(.shift),
-                   event.keyCode == 125 || event.keyCode == 126 {
+                case .move(let delta):
                     NotificationCenter.default.post(
                         name: .altitudeMenuMoveSelection,
                         object: targetWindow,
-                        userInfo: ["delta": event.keyCode == 125 ? 1 : -1]
+                        userInfo: ["delta": delta]
                     )
-                    return true
-                }
-                if isReturn, !hasCommand, !hasOption, !hasControl {
+                case .submit:
                     NotificationCenter.default.post(name: .altitudeMenuSubmit, object: targetWindow)
-                    return true
                 }
+                return true
             }
 
             let menuIgnoringTextInput = AltitudeMenuShortcut.matches(

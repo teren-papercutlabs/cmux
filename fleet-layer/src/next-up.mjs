@@ -100,7 +100,7 @@ export function resolveNextUp(snapshot, options = {}) {
     schemaVersion: 1,
     collectedAt: snapshot.collectedAt,
     items,
-    processingCount: snapshot.agents.filter((agent) => agent.status === 'running').length,
+    processingCount: processing.length,
     idleCount: snapshot.agents.filter((agent) => agent.status === 'idle').length,
     processing,
   };

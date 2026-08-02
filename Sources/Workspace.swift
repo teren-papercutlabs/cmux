@@ -4243,9 +4243,12 @@ final class Workspace: Identifiable, ObservableObject {
 
     private func altitudeSeatLabel(for panelID: UUID) -> String? {
         let configuration = PcLPrioritySwitcherConfiguration.load()
-        if configuration.leadSurfaceId == panelID { return "1A" }
-        if configuration.understudySurfaceId == panelID { return "1B" }
-        return nil
+        return AltitudeSeatTitle.role(
+            isAltitudeEnabled: AltitudeConfiguration.isEnabled(),
+            panelID: panelID,
+            leadSurfaceID: configuration.leadSurfaceId,
+            understudySurfaceID: configuration.understudySurfaceId
+        )
     }
 
     func refreshAltitudeSeatTitles() {
