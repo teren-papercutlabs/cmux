@@ -443,8 +443,8 @@ struct AltitudeOfficeAttachResumeTests {
     }
 }
 
-@Suite("Altitude floating next-up cards")
-struct AltitudeNextUpFloatPresentationTests {
+@Suite("Altitude menu presentation")
+struct AltitudeMenuPresentationTests {
     private func item(
         id: String,
         tmuxSession: String?,
@@ -464,59 +464,108 @@ struct AltitudeNextUpFloatPresentationTests {
         )
     }
 
-    @Test("an empty snapshot has no floating presentation footprint")
-    func emptySnapshotDoesNotRender() {
-        #expect(!AltitudeNextUpFloatPresentation.shouldRender(snapshot: .empty))
-        #expect(AltitudeNextUpFloatPresentation.cards(snapshot: .empty).isEmpty)
+    @Test("the menu always targets the third pane with a last-pane fallback")
+    func targetPaneIndex() {
+        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 0) == nil)
+        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 1) == 0)
+        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 2) == 1)
+        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 3) == 2)
+        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 5) == 2)
     }
 
-    @Test("the float exposes at most three cards with session names")
-    func cardsUseSessionNamesAndCapAtThree() throws {
+    @Test("command zero opens only outside AppKit text input")
+    func commandZeroShortcut() {
+        #expect(AltitudeMenuShortcut.matches(
+            isAltitudeEnabled: true,
+            characters: "0",
+            keyCode: 29,
+            modifierFlags: [.command],
+            textInputOwnsEvent: false
+        ))
+        #expect(!AltitudeMenuShortcut.matches(
+            isAltitudeEnabled: true,
+            characters: "0",
+            keyCode: 29,
+            modifierFlags: [.command],
+            textInputOwnsEvent: true
+        ))
+        #expect(!AltitudeMenuShortcut.matches(
+            isAltitudeEnabled: false,
+            characters: "0",
+            keyCode: 29,
+            modifierFlags: [.command],
+            textInputOwnsEvent: false
+        ))
+    }
+
+    @Test("anointed title prefixes replace rather than stack and clear cleanly")
+    func anointedTabTitles() {
+        #expect(AltitudeSeatTitle.resolved(baseTitle: "edna-tgg", role: "1A") == "[1A] edna-tgg")
+        #expect(AltitudeSeatTitle.resolved(baseTitle: "[1A] edna-tgg", role: "1B") == "[1B] edna-tgg")
+        #expect(AltitudeSeatTitle.resolved(baseTitle: "[1B] edna-tgg", role: nil) == "edna-tgg")
+    }
+
+    @Test("main sessions are excluded and the oldest eligible wait is emphasized")
+    func filtersMainsAndFindsOldest() throws {
         let snapshot = AltitudeNextUpSnapshot(
             schemaVersion: 1,
             collectedAt: "2026-08-01T20:05:00Z",
             items: [
-                item(id: "one", tmuxSession: "kleya-hive-drive"),
-                item(id: "two", tmuxSession: "xianxing-altitude-third-pane"),
-                item(id: "three", tmuxSession: "rasim-resilience"),
-                item(id: "four", tmuxSession: "must-not-render"),
+                item(id: "main", tmuxSession: "xianxing-main-teren"),
+                item(id: "newer", tmuxSession: "xianxing-altitude-third-pane"),
+                AltitudeNextUpItem(
+                    agentId: "edna", agentName: "Edna", sessionId: "oldest",
+                    jumpSessionId: "oldest", tmuxSession: "edna-tgg", priority: nil,
+                    classification: "actionable",
+                    why: .init(label: "needs you", confidence: 1, line: "Choose A or B"),
+                    waitingSince: "2026-08-01T19:00:00Z", waitSeconds: 3_900
+                ),
             ],
             processingCount: 4,
-            idleCount: 2
+            idleCount: 2,
+            processing: []
         )
 
-        let cards = AltitudeNextUpFloatPresentation.cards(snapshot: snapshot)
-        let first = try #require(cards.first)
-        #expect(cards.count == 3)
-        #expect(first.sessionName == "kleya-hive-drive")
-        #expect(cards.map(\.shortcutHint) == ["⌥↩", "⌥2", "⌥3"])
+        let rows = AltitudeMenuPresentation.needsYouItems(snapshot: snapshot)
+        #expect(rows.map(\.sessionId) == ["newer", "oldest"])
+        #expect(AltitudeMenuPresentation.oldestWaitingID(in: rows) == "oldest")
     }
 
-    @Test("the third terminal pane is the stable anchor with a nearest-terminal fallback")
-    func targetPaneIndex() {
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: []) == nil)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0]) == 0)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0, 1, 2]) == 2)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0, 1, 3]) == 1)
-        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [3, 4]) == 3)
+    @Test("moving selection replaces the inline expansion")
+    func selectionMovesAndCollapsesPrevious() {
+        let rows = [
+            item(id: "one", tmuxSession: "one"),
+            item(id: "two", tmuxSession: "two"),
+            item(id: "three", tmuxSession: "three"),
+        ]
+        #expect(AltitudeMenuPresentation.movedSelection(currentID: nil, delta: 1, items: rows) == "one")
+        #expect(AltitudeMenuPresentation.movedSelection(currentID: "one", delta: 1, items: rows) == "two")
+        #expect(AltitudeMenuPresentation.movedSelection(currentID: "one", delta: -1, items: rows) == "three")
     }
 
-    @Test("cards grow leftward from the target pane edge instead of clipping to the pane")
-    func cardWidthUsesOverlaySpace() {
-        #expect(AltitudeNextUpFloatPresentation.preferredFloatWidth == 468)
-        #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 500) == 468)
-        #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 500) == 420)
-        #expect(AltitudeNextUpFloatPresentation.floatOriginX(targetMaxX: 1_000) == 532)
-        #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 300) == 300)
-        #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 300) == 252)
-        #expect(AltitudeNextUpFloatPresentation.floatOriginX(targetMaxX: 300) == 0)
+    @Test("arrival reports one consequential resolver delta and omits stable snapshots")
+    func arrivalDelta() throws {
+        let prior = AltitudeNextUpSnapshot(
+            schemaVersion: 1, collectedAt: "before",
+            items: [item(id: "finished", tmuxSession: "kleya-hive-drive")],
+            processingCount: 1, idleCount: 0, processing: []
+        )
+        let current = AltitudeNextUpSnapshot(
+            schemaVersion: 1, collectedAt: "after",
+            items: [item(id: "waiting", tmuxSession: "edna-tgg")],
+            processingCount: 1, idleCount: 0, processing: []
+        )
+        let delta = try #require(AltitudeMenuPresentation.arrival(previous: prior, current: current))
+        #expect(delta.kind == .finished)
+        #expect(delta.sessionName == "kleya-hive-drive")
+        #expect(AltitudeMenuPresentation.arrival(previous: current, current: current) == nil)
     }
 }
 
 @MainActor
 @Suite("Altitude window overlay interaction")
 struct AltitudeWindowOverlayInteractionTests {
-    @Test("the flipped container only captures the measured card frame")
+    @Test("the flipped container only captures the full menu pane")
     func measuredHitRegion() {
         let container = PassthroughWindowOverlayContainerView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 800))
         container.interactiveRect = CGRect(x: 532, y: 540, width: 468, height: 200)

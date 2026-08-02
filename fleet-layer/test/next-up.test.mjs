@@ -13,12 +13,13 @@ function agent({
   createdAt,
   summary = 'decision required',
   jumpSessionId,
+  tmuxSession,
 }) {
   return {
     id,
     name: id[0].toUpperCase() + id.slice(1),
     status,
-    jump: jumpSessionId ? { sessionId: jumpSessionId, tmuxSession: `${id}-tmux` } : null,
+    jump: jumpSessionId ? { sessionId: jumpSessionId, tmuxSession: tmuxSession ?? `${id}-tmux` } : null,
     attention: createdAt ? {
       sessionId: jumpSessionId ?? `${id}-session`,
       status: 'question',
@@ -78,7 +79,41 @@ test('never recommends processing or ranked-only sessions', () => {
 
   assert.deepEqual(result.items, []);
   assert.equal(result.processingCount, 1);
+  assert.deepEqual(result.processing.map((item) => item.agentId), ['lead']);
+  assert.equal(result.processing[0].priority, '1A');
+  assert.equal(result.processing[0].tmuxSession, 'lead-tmux');
   assert.equal(result.idleCount, 1);
+});
+
+test('excludes principal mains from recommendations while retaining them in processing context', () => {
+  const result = resolveNextUp({
+    schemaVersion: 1,
+    collectedAt,
+    counts: { total: 3, needsYou: 2, running: 1, idle: 0 },
+    agents: [
+      agent({
+        id: 'main-waiting',
+        createdAt: '2026-08-01T05:30:00.000Z',
+        jumpSessionId: 'main-waiting-session',
+        tmuxSession: 'xianxing-main-teren',
+      }),
+      agent({
+        id: 'worker-waiting',
+        createdAt: '2026-08-01T05:40:00.000Z',
+        jumpSessionId: 'worker-waiting-session',
+        tmuxSession: 'xianxing-altitude-worker',
+      }),
+      agent({
+        id: 'main-running',
+        status: 'running',
+        jumpSessionId: 'main-running-session',
+        tmuxSession: 'kleya-main-amelia',
+      }),
+    ],
+  }, { now: new Date(collectedAt) });
+
+  assert.deepEqual(result.items.map((item) => item.agentId), ['worker-waiting']);
+  assert.deepEqual(result.processing.map((item) => item.agentId), ['main-running']);
 });
 
 test('renders an ambiguous needs-you record as uncertain without an LLM call', () => {
