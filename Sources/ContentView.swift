@@ -5693,7 +5693,7 @@ struct ContentView: View {
                         rank: rank,
                         title: "\(role.label) — \(surfaceName)",
                         subtitle: workspaceDisplayName(workspace),
-                        shortcutHint: role.label == "1A" ? "↩" : "⌘↩",
+                        shortcutHint: AltitudePriorityShortcut.hint(for: role.label),
                         kindLabel: nil,
                         sectionLabel: String(localized: "altitude.palette.priority", defaultValue: "Priority"),
                         keywords: [role.label, surfaceName],

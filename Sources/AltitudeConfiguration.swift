@@ -55,6 +55,14 @@ enum AltitudePaletteCorpus {
 }
 
 enum AltitudePriorityShortcut {
+    static func hint(for priority: String) -> String? {
+        switch priority {
+        case "1A": return "⌘1"
+        case "1B": return "⌘2"
+        default: return nil
+        }
+    }
+
     static func priority(
         isAltitudeEnabled: Bool,
         characters: String,
@@ -77,5 +85,18 @@ enum AltitudePriorityShortcut {
         case 2: return "1B"
         default: return nil
         }
+    }
+}
+
+enum AltitudeOfficeAttachResumePolicy {
+    static let bindingKind = "altitude-office-attach"
+
+    static func allowsRestore(
+        bindingKind: String?,
+        isAltitudeEnabled: Bool,
+        restoreOfficeAttaches: Bool
+    ) -> Bool {
+        guard bindingKind == Self.bindingKind else { return true }
+        return isAltitudeEnabled && restoreOfficeAttaches
     }
 }

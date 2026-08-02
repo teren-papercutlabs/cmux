@@ -959,6 +959,16 @@ extension Workspace {
         _ binding: SurfaceResumeBindingSnapshot?,
         restorableAgent: SessionRestorableAgentSnapshot?
     ) -> SurfaceResumeBindingSnapshot? {
+        if binding?.kind == AltitudeOfficeAttachResumePolicy.bindingKind {
+            let altitudeConfiguration = AltitudeConfiguration()
+            guard AltitudeOfficeAttachResumePolicy.allowsRestore(
+                bindingKind: binding?.kind,
+                isAltitudeEnabled: AltitudeConfiguration.isEnabled(),
+                restoreOfficeAttaches: altitudeConfiguration.restoreOfficeAttaches
+            ) else {
+                return nil
+            }
+        }
         guard let binding, binding.isAgentHookBinding, let restorableAgent else {
             return binding
         }

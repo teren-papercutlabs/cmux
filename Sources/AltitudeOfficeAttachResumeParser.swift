@@ -19,7 +19,8 @@ enum AltitudeOfficeAttachResumeParser {
         ].compactMap { value in
             value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         }
-        guard executableBasenames.contains(where: { $0 == "node" || $0 == "nodejs" }) else {
+        guard !executableBasenames.isEmpty,
+              executableBasenames.allSatisfy({ $0 == "node" || $0 == "nodejs" }) else {
             return nil
         }
 
@@ -34,7 +35,7 @@ enum AltitudeOfficeAttachResumeParser {
         let command = arguments.map(shellSingleQuoted).joined(separator: " ")
         return SurfaceResumeBindingSnapshot(
             name: "Office \(sessionID)",
-            kind: "altitude-office-attach",
+            kind: AltitudeOfficeAttachResumePolicy.bindingKind,
             command: command,
             cwd: normalized(environment["CMUX_AGENT_LAUNCH_CWD"] ?? environment["PWD"]),
             checkpointId: sessionID,
