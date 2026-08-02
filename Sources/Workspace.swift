@@ -3102,17 +3102,6 @@ final class Workspace: Identifiable, ObservableObject {
             guard let self, let panelID = self.panelIdFromSurfaceId(tabId) else { return nil }
             return self.altitudeSeatLabel(for: panelID)
         }
-        bonsplitController.paneBadgeProvider = { [weak self] paneID in
-            guard let self else { return nil }
-            let configuration = PcLPrioritySwitcherConfiguration.load()
-            if let lead = configuration.leadSurfaceId,
-               self.panels[lead] != nil,
-               self.paneId(forPanelId: lead) == paneID { return "1A" }
-            if let understudy = configuration.understudySurfaceId,
-               self.panels[understudy] != nil,
-               self.paneId(forPanelId: understudy) == paneID { return "1B" }
-            return nil
-        }
         bonsplitController.tabContextPrioritySeatAvailabilityProvider = { [weak self] tabID, _ in
             guard let self else { return false }
             return AltitudeConfiguration.isEnabled() && self.panelIdFromSurfaceId(tabID) != nil

@@ -40,7 +40,12 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: nil,
                 activePaneBorderColorHex: nil,
                 flashStartedAt: nil,
-                flashReason: nil
+                flashReason: nil,
+                altitudeSnapshot: nil,
+                altitudeErrorMessage: nil,
+                altitudeTargetRect: nil,
+                onAltitudeGo: { _ in },
+                onAltitudeFrameChange: { _ in }
             )
         )
         super.init()
@@ -85,7 +90,21 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
             installedReferenceView = target.reference
         }
 
+        Self.promoteAbovePortalHosts(containerView: containerView, in: target.container)
+
         return true
+    }
+
+    static func promoteAbovePortalHosts(containerView: NSView, in container: NSView) {
+        guard containerView.superview === container else { return }
+        let portalHosts = container.subviews.compactMap { $0 as? WindowTerminalHostView }
+        guard let topmostPortalHost = portalHosts.max(by: {
+            (container.subviews.firstIndex(of: $0) ?? -1) < (container.subviews.firstIndex(of: $1) ?? -1)
+        }),
+        let overlayIndex = container.subviews.firstIndex(of: containerView),
+        let hostIndex = container.subviews.firstIndex(of: topmostPortalHost),
+        overlayIndex <= hostIndex else { return }
+        container.addSubview(containerView, positioned: .above, relativeTo: topmostPortalHost)
     }
 
     func update(state: TmuxWorkspacePaneOverlayRenderState?) {
@@ -107,8 +126,16 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: model.activePaneBorderRect,
                 activePaneBorderColorHex: model.activePaneBorderColorHex,
                 flashStartedAt: model.flashStartedAt,
-                flashReason: model.flashReason
+                flashReason: model.flashReason,
+                altitudeSnapshot: state.altitudeSnapshot,
+                altitudeErrorMessage: state.altitudeErrorMessage,
+                altitudeTargetRect: state.altitudeTargetRect,
+                onAltitudeGo: { [weak self] item in self?.handleAltitudeGo(item) },
+                onAltitudeFrameChange: { [weak self] frame in
+                    self?.containerView.interactiveRect = frame.flatMap { $0.isEmpty ? nil : $0 }
+                }
             )
+            containerView.interactiveRect = nil
             containerView.alphaValue = 1
             containerView.isHidden = false
         } else {
@@ -120,11 +147,24 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: nil,
                 activePaneBorderColorHex: nil,
                 flashStartedAt: nil,
-                flashReason: nil
+                flashReason: nil,
+                altitudeSnapshot: nil,
+                altitudeErrorMessage: nil,
+                altitudeTargetRect: nil,
+                onAltitudeGo: { _ in },
+                onAltitudeFrameChange: { _ in }
             )
+            containerView.interactiveRect = nil
             containerView.alphaValue = 0
             containerView.isHidden = true
         }
+    }
+
+    private func handleAltitudeGo(_ item: AltitudeNextUpItem) {
+        guard let index = lastRenderState?.altitudeSnapshot?.items.firstIndex(where: { $0.id == item.id }),
+              index < AltitudeNextUpFloatPresentation.maximumCardCount else { return }
+        let names: [Notification.Name] = [.altitudeGoTop, .altitudeGoSecond, .altitudeGoThird]
+        NotificationCenter.default.post(name: names[index], object: window)
     }
 
     func scheduleGeometryRefresh(stateProvider: @MainActor @escaping () -> TmuxWorkspacePaneOverlayRenderState?) {

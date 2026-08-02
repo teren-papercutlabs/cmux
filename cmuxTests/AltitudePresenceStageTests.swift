@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -169,5 +170,106 @@ struct AltitudeCommandPaletteCorpusTests {
             needsYouEntries: ["needs-you"]
         )
         #expect(entries == ["needs-you"])
+    }
+}
+
+@Suite("Altitude floating next-up cards")
+struct AltitudeNextUpFloatPresentationTests {
+    private func item(
+        id: String,
+        tmuxSession: String?,
+        why: String = "Waiting for a decision on the reader controls"
+    ) -> AltitudeNextUpItem {
+        AltitudeNextUpItem(
+            agentId: "xianxing",
+            agentName: "Xing",
+            sessionId: id,
+            jumpSessionId: id,
+            tmuxSession: tmuxSession,
+            priority: nil,
+            classification: "actionable",
+            why: .init(label: "needs you", confidence: 1, line: why),
+            waitingSince: "2026-08-01T20:00:00Z",
+            waitSeconds: 300
+        )
+    }
+
+    @Test("an empty snapshot has no floating presentation footprint")
+    func emptySnapshotDoesNotRender() {
+        #expect(!AltitudeNextUpFloatPresentation.shouldRender(snapshot: .empty))
+        #expect(AltitudeNextUpFloatPresentation.cards(snapshot: .empty).isEmpty)
+    }
+
+    @Test("the float exposes at most three cards with session names")
+    func cardsUseSessionNamesAndCapAtThree() throws {
+        let snapshot = AltitudeNextUpSnapshot(
+            schemaVersion: 1,
+            collectedAt: "2026-08-01T20:05:00Z",
+            items: [
+                item(id: "one", tmuxSession: "kleya-hive-drive"),
+                item(id: "two", tmuxSession: "xianxing-altitude-third-pane"),
+                item(id: "three", tmuxSession: "rasim-resilience"),
+                item(id: "four", tmuxSession: "must-not-render"),
+            ],
+            processingCount: 4,
+            idleCount: 2
+        )
+
+        let cards = AltitudeNextUpFloatPresentation.cards(snapshot: snapshot)
+        let first = try #require(cards.first)
+        #expect(cards.count == 3)
+        #expect(first.sessionName == "kleya-hive-drive")
+        #expect(cards.map(\.shortcutHint) == ["⌥↩", "⌥2", "⌥3"])
+    }
+
+    @Test("the third terminal pane is the stable anchor with a nearest-terminal fallback")
+    func targetPaneIndex() {
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: []) == nil)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0]) == 0)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0, 1, 2]) == 2)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [0, 1, 3]) == 1)
+        #expect(AltitudeNextUpFloatPresentation.targetPaneIndex(terminalPaneIndices: [3, 4]) == 3)
+    }
+
+    @Test("cards grow leftward from the target pane edge instead of clipping to the pane")
+    func cardWidthUsesOverlaySpace() {
+        #expect(AltitudeNextUpFloatPresentation.preferredFloatWidth == 468)
+        #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 500) == 468)
+        #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 500) == 420)
+        #expect(AltitudeNextUpFloatPresentation.floatOriginX(targetMaxX: 1_000) == 532)
+        #expect(AltitudeNextUpFloatPresentation.floatWidth(availableWidth: 300) == 300)
+        #expect(AltitudeNextUpFloatPresentation.cardContentWidth(availableWidth: 300) == 252)
+        #expect(AltitudeNextUpFloatPresentation.floatOriginX(targetMaxX: 300) == 0)
+    }
+}
+
+@MainActor
+@Suite("Altitude window overlay interaction")
+struct AltitudeWindowOverlayInteractionTests {
+    @Test("the flipped container only captures the measured card frame")
+    func measuredHitRegion() {
+        let container = PassthroughWindowOverlayContainerView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 800))
+        container.interactiveRect = CGRect(x: 532, y: 540, width: 468, height: 200)
+
+        #expect(container.isFlipped)
+        #expect(container.hitTest(CGPoint(x: 700, y: 600)) === container)
+        #expect(container.hitTest(CGPoint(x: 700, y: 100)) == nil)
+    }
+
+    @Test("the altitude container is promoted above terminal portal hosts")
+    func overlayPromotesAbovePortalHost() throws {
+        let parent = NSView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 800))
+        let reference = NSView(frame: parent.bounds)
+        let overlay = PassthroughWindowOverlayContainerView(frame: parent.bounds)
+        let portal = WindowTerminalHostView(frame: parent.bounds)
+        parent.addSubview(reference)
+        parent.addSubview(overlay, positioned: .above, relativeTo: reference)
+        parent.addSubview(portal, positioned: .above, relativeTo: reference)
+
+        WindowTmuxWorkspacePaneOverlayController.promoteAbovePortalHosts(containerView: overlay, in: parent)
+
+        let overlayIndex = try #require(parent.subviews.firstIndex(of: overlay))
+        let portalIndex = try #require(parent.subviews.firstIndex(of: portal))
+        #expect(overlayIndex > portalIndex)
     }
 }

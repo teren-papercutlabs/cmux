@@ -9,12 +9,59 @@ struct TmuxWorkspacePaneOverlayView: View {
     let activePaneBorderColorHex: String?
     let flashStartedAt: Date?
     let flashReason: WorkspaceAttentionFlashReason?
+    let altitudeSnapshot: AltitudeNextUpSnapshot?
+    let altitudeErrorMessage: String?
+    let altitudeTargetRect: CGRect?
+    let onAltitudeGo: (AltitudeNextUpItem) -> Void
+    let onAltitudeFrameChange: (CGRect?) -> Void
     @State private var completedFlashStartedAt: Date?
 
     var body: some View {
-        overlayContent
-            .allowsHitTesting(false)
+        ZStack(alignment: .topLeading) {
+            overlayContent
+                .allowsHitTesting(false)
+
+            if let altitudeSnapshot,
+               let altitudeTargetRect,
+               AltitudeNextUpFloatPresentation.shouldRender(snapshot: altitudeSnapshot) {
+                let floatWidth = AltitudeNextUpFloatPresentation.floatWidth(
+                    availableWidth: altitudeTargetRect.maxX
+                )
+                AltitudeNextUpFloat(
+                    snapshot: altitudeSnapshot,
+                    errorMessage: altitudeErrorMessage,
+                    availableWidth: floatWidth,
+                    onGo: onAltitudeGo
+                )
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: AltitudeNextUpFramePreferenceKey.self,
+                            value: proxy.frame(in: .named(AltitudeNextUpFramePreferenceKey.coordinateSpace))
+                        )
+                    }
+                }
+                .frame(
+                    width: floatWidth,
+                    height: altitudeTargetRect.height,
+                    alignment: AltitudeNextUpFloatPresentation.anchor
+                )
+                // The third pane is the anchor, not a clipping boundary. Let the
+                // cards grow leftward so the session and why line stay legible
+                // even when three equal-width panes make the target narrow.
+                .offset(
+                    x: AltitudeNextUpFloatPresentation.floatOriginX(
+                        targetMaxX: altitudeTargetRect.maxX
+                    ),
+                    y: altitudeTargetRect.minY
+                )
+            }
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .coordinateSpace(name: AltitudeNextUpFramePreferenceKey.coordinateSpace)
+            .onPreferenceChange(AltitudeNextUpFramePreferenceKey.self) { frame in
+                onAltitudeFrameChange(frame)
+            }
     }
 
     @ViewBuilder
@@ -140,6 +187,15 @@ struct TmuxWorkspacePaneOverlayView: View {
             roundedRect: PanelOverlayRingMetrics.pathRect(in: rect),
             cornerRadius: PanelOverlayRingMetrics.cornerRadius
         )
+    }
+}
+
+private struct AltitudeNextUpFramePreferenceKey: PreferenceKey {
+    static let coordinateSpace = "cmux.altitude.next-up.overlay"
+    static var defaultValue: CGRect?
+
+    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+        value = nextValue() ?? value
     }
 }
 
