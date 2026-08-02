@@ -162,14 +162,135 @@ struct AltitudeSeatPinningTests {
 
 @Suite("Altitude command palette corpus")
 struct AltitudeCommandPaletteCorpusTests {
-    @Test("needs-you entries remain in the corpus for a typed query")
-    func typedQueryKeepsNeedsYouEntries() {
+    @Test("an empty query shows Altitude priority and needs-you entries")
+    func emptyQueryShowsAltitudeEntries() {
+        let entries = AltitudePaletteCorpus.orderedEntries(
+            query: "  ",
+            priorityEntries: ["priority"],
+            needsYouEntries: ["needs-you"]
+        )
+        #expect(entries == ["priority", "needs-you"])
+    }
+
+    @Test("a typed query removes Altitude-only entries from the original switcher corpus")
+    func typedQueryUsesOriginalCorpus() {
         let entries = AltitudePaletteCorpus.orderedEntries(
             query: "needs teren",
             priorityEntries: ["priority"],
             needsYouEntries: ["needs-you"]
         )
-        #expect(entries == ["needs-you"])
+        #expect(entries.isEmpty)
+    }
+}
+
+@Suite("Altitude priority shortcuts")
+struct AltitudePriorityShortcutTests {
+    @Test("command one and command two route to the two priority seats")
+    func routesPrioritySeats() {
+        #expect(AltitudePriorityShortcut.priority(
+            isAltitudeEnabled: true,
+            characters: "1",
+            keyCode: 18,
+            modifierFlags: [.command],
+            textInputOwnsEvent: false
+        ) == "1A")
+        #expect(AltitudePriorityShortcut.priority(
+            isAltitudeEnabled: true,
+            characters: "2",
+            keyCode: 19,
+            modifierFlags: [.command],
+            textInputOwnsEvent: false
+        ) == "1B")
+    }
+
+    @Test("vanilla, modified chords, and text input retain existing behavior")
+    func preservesExistingRoutingOutsideAltitude() {
+        #expect(AltitudePriorityShortcut.priority(
+            isAltitudeEnabled: false,
+            characters: "1",
+            keyCode: 18,
+            modifierFlags: [.command],
+            textInputOwnsEvent: false
+        ) == nil)
+        #expect(AltitudePriorityShortcut.priority(
+            isAltitudeEnabled: true,
+            characters: "1",
+            keyCode: 18,
+            modifierFlags: [.command, .option],
+            textInputOwnsEvent: false
+        ) == nil)
+        #expect(AltitudePriorityShortcut.priority(
+            isAltitudeEnabled: true,
+            characters: "1",
+            keyCode: 18,
+            modifierFlags: [.command],
+            textInputOwnsEvent: true
+        ) == nil)
+    }
+}
+
+@Suite("Altitude office attach restoration")
+struct AltitudeOfficeAttachResumeTests {
+    @Test("the exact office attach command becomes a process-detected resume binding")
+    func recognizesOfficeAttach() throws {
+        let sessionID = "c5017c5d-e034-43da-8834-eb21479f8256"
+        let binding = try #require(AltitudeOfficeAttachResumeParser.binding(
+            processName: "node",
+            processPath: "/opt/homebrew/bin/node",
+            arguments: [
+                "/opt/homebrew/bin/node",
+                "/Users/teren/pcl-client/office/dist/index.js",
+                "a",
+                sessionID,
+            ],
+            environment: ["PWD": "/Users/teren"],
+            homeDirectory: "/Users/teren",
+            isEnabled: true,
+            capturedAt: 1_777_777_777
+        ))
+
+        #expect(binding.kind == "altitude-office-attach")
+        #expect(binding.checkpointId == sessionID)
+        #expect(binding.source == "process-detected")
+        #expect(binding.autoResume == true)
+        #expect(binding.command.contains("/Users/teren/pcl-client/office/dist/index.js"))
+        #expect(binding.command.contains(sessionID))
+    }
+
+    @Test("arbitrary node commands and disabled restore are never replayed")
+    func rejectsUnrecognizedCommands() {
+        let commonArguments = [
+            "node",
+            "/Users/teren/pcl-client/office/dist/index.js",
+            "a",
+            "c5017c5d-e034-43da-8834-eb21479f8256",
+        ]
+        #expect(AltitudeOfficeAttachResumeParser.binding(
+            processName: "node",
+            processPath: nil,
+            arguments: ["node", "/Users/teren/scripts/anything.js", "a", "session"],
+            environment: [:],
+            homeDirectory: "/Users/teren",
+            isEnabled: true,
+            capturedAt: 1
+        ) == nil)
+        #expect(AltitudeOfficeAttachResumeParser.binding(
+            processName: "node",
+            processPath: nil,
+            arguments: commonArguments,
+            environment: [:],
+            homeDirectory: "/Users/teren",
+            isEnabled: false,
+            capturedAt: 1
+        ) == nil)
+    }
+
+    @Test("office attach restoration defaults on and has an off dial")
+    func configurationDial() {
+        let defaults = UserDefaults(suiteName: "AltitudeOfficeAttachResumeTests.\(UUID().uuidString)")!
+        #expect(AltitudeConfiguration(defaults: defaults).restoreOfficeAttaches)
+        defaults.set(false, forKey: AltitudeConfiguration.restoreOfficeAttachesKey)
+        #expect(!AltitudeConfiguration(defaults: defaults).restoreOfficeAttaches)
     }
 }
 
