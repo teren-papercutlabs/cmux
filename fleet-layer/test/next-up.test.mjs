@@ -85,6 +85,21 @@ test('never recommends processing or ranked-only sessions', () => {
   assert.equal(result.idleCount, 1);
 });
 
+test('processing count and rows share one source of truth', () => {
+  const result = resolveNextUp({
+    schemaVersion: 1,
+    collectedAt,
+    counts: { total: 2, needsYou: 0, running: 2, idle: 0 },
+    agents: [
+      agent({ id: 'jumpable', status: 'running', jumpSessionId: 'jumpable-session' }),
+      agent({ id: 'unresolved', status: 'running' }),
+    ],
+  }, { now: new Date(collectedAt) });
+
+  assert.equal(result.processingCount, result.processing.length);
+  assert.deepEqual(result.processing.map((item) => item.agentId), ['jumpable']);
+});
+
 test('excludes principal mains from recommendations while retaining them in processing context', () => {
   const result = resolveNextUp({
     schemaVersion: 1,

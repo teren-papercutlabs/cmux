@@ -496,13 +496,61 @@ struct AltitudeMenuPresentationTests {
             modifierFlags: [.command],
             textInputOwnsEvent: false
         ))
+        #expect(AltitudeMenuShortcut.matches(
+            isAltitudeEnabled: true,
+            characters: "0",
+            keyCode: 29,
+            modifierFlags: [.command, .capsLock, .numericPad],
+            textInputOwnsEvent: false
+        ))
+    }
+
+    @Test("presented-menu keys yield to AppKit text input")
+    func menuNavigationRespectsTextInput() {
+        #expect(AltitudeMenuNavigationAction.resolve(
+            isPresented: true,
+            keyCode: 125,
+            modifierFlags: [],
+            textInputOwnsEvent: false
+        ) == .move(1))
+        #expect(AltitudeMenuNavigationAction.resolve(
+            isPresented: true,
+            keyCode: 36,
+            modifierFlags: [],
+            textInputOwnsEvent: false
+        ) == .submit)
+        #expect(AltitudeMenuNavigationAction.resolve(
+            isPresented: true,
+            keyCode: 53,
+            modifierFlags: [],
+            textInputOwnsEvent: false
+        ) == .dismiss)
+        #expect(AltitudeMenuNavigationAction.resolve(
+            isPresented: true,
+            keyCode: 36,
+            modifierFlags: [],
+            textInputOwnsEvent: true
+        ) == nil)
     }
 
     @Test("anointed title prefixes replace rather than stack and clear cleanly")
     func anointedTabTitles() {
+        let panelID = UUID()
         #expect(AltitudeSeatTitle.resolved(baseTitle: "edna-tgg", role: "1A") == "[1A] edna-tgg")
         #expect(AltitudeSeatTitle.resolved(baseTitle: "[1A] edna-tgg", role: "1B") == "[1B] edna-tgg")
         #expect(AltitudeSeatTitle.resolved(baseTitle: "[1B] edna-tgg", role: nil) == "edna-tgg")
+        #expect(AltitudeSeatTitle.role(
+            isAltitudeEnabled: true,
+            panelID: panelID,
+            leadSurfaceID: panelID,
+            understudySurfaceID: nil
+        ) == "1A")
+        #expect(AltitudeSeatTitle.role(
+            isAltitudeEnabled: false,
+            panelID: panelID,
+            leadSurfaceID: panelID,
+            understudySurfaceID: nil
+        ) == nil)
     }
 
     @Test("main sessions are excluded and the oldest eligible wait is emphasized")
@@ -560,6 +608,37 @@ struct AltitudeMenuPresentationTests {
         #expect(delta.sessionName == "kleya-hive-drive")
         #expect(AltitudeMenuPresentation.arrival(previous: current, current: current) == nil)
     }
+
+    @Test("live resolver updates refresh arrival, selection, and workspace dismissal")
+    func interactionStateTracksLiveChanges() throws {
+        let prior = AltitudeNextUpSnapshot(
+            schemaVersion: 1, collectedAt: "before",
+            items: [item(id: "finished", tmuxSession: "kleya-hive-drive")],
+            processingCount: 1, idleCount: 0, processing: []
+        )
+        let current = AltitudeNextUpSnapshot(
+            schemaVersion: 1, collectedAt: "after",
+            items: [item(id: "waiting", tmuxSession: "edna-tgg")],
+            processingCount: 1, idleCount: 0, processing: []
+        )
+        var state = AltitudeMenuInteractionState()
+        state.open(snapshot: prior, now: Date(timeIntervalSince1970: 10))
+        state.update(snapshot: current, previous: prior, now: Date(timeIntervalSince1970: 20))
+        #expect(state.arrival?.kind == .finished)
+        #expect(state.selectedItemID == "waiting")
+        #expect(state.previousSnapshot == current)
+
+        state.workspaceDidChange()
+        #expect(!state.isPresented)
+        #expect(state.selectedItemID == nil)
+    }
+
+    @Test("quiet durations do not render the wait-state word now")
+    func localizedDurationKindsRemainDistinct() {
+        #expect(AltitudeMenuDurationLabel.quiet(0) != AltitudeMenuDurationLabel.waiting(0))
+        #expect(!AltitudeMenuDurationLabel.quiet(0).isEmpty)
+        #expect(!AltitudeMenuDurationLabel.waiting(3_600).isEmpty)
+    }
 }
 
 @MainActor
@@ -590,5 +669,21 @@ struct AltitudeWindowOverlayInteractionTests {
         let overlayIndex = try #require(parent.subviews.firstIndex(of: overlay))
         let portalIndex = try #require(parent.subviews.firstIndex(of: portal))
         #expect(overlayIndex > portalIndex)
+    }
+
+    @Test("authoritative menu state survives a temporarily missing target rect")
+    func authoritativePresentationFlag() {
+        let state = TmuxWorkspacePaneOverlayRenderState(
+            workspaceId: UUID(),
+            unreadRects: [],
+            flashRect: nil,
+            flashToken: 0,
+            flashReason: nil,
+            altitudeMenu: nil,
+            altitudeTargetRect: nil,
+            altitudeMenuIsPresented: true
+        )
+        #expect(state.altitudeMenuIsPresented)
+        #expect(state.altitudeMenu == nil)
     }
 }
