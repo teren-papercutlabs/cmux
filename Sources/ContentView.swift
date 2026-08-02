@@ -5538,12 +5538,15 @@ struct ContentView: View {
         let needsYouEntries = commandPaletteAltitudeNeedsYouEntries(
             startingRank: CommandPaletteFuzzyMatcher.preparedQuery(matchingQuery).isEmpty ? priorityEntries.count : 0
         )
-        let altitudeEntries = AltitudePaletteCorpus.orderedEntries(
-            query: matchingQuery,
-            priorityEntries: priorityEntries,
-            needsYouEntries: needsYouEntries
-        )
-        if CommandPaletteFuzzyMatcher.preparedQuery(matchingQuery).isEmpty {
+        let altitudeEnabled = AltitudeConfiguration.isEnabled()
+        let altitudeEntries = altitudeEnabled
+            ? AltitudePaletteCorpus.orderedEntries(
+                query: matchingQuery,
+                priorityEntries: priorityEntries,
+                needsYouEntries: needsYouEntries
+            )
+            : []
+        if altitudeEnabled, CommandPaletteFuzzyMatcher.preparedQuery(matchingQuery).isEmpty {
             return altitudeEntries
         }
 

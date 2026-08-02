@@ -12783,19 +12783,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return true
     }
 
-    private func altitudeHasPrioritySurface(_ priority: String, event: NSEvent) -> Bool {
-        let configuration = PcLPrioritySwitcherConfiguration.load()
-        let surfaceID = priority == "1B"
-            ? configuration.understudySurfaceId
-            : configuration.leadSurfaceId
-        guard let surfaceID else { return false }
-        let routedManager = preferredMainWindowContextForShortcutRouting(event: event)?.tabManager
-        let managers = [routedManager, tabManager].compactMap { $0 }
-        return managers.contains { manager in
-            manager.tabs.contains { $0.panels[surfaceID] != nil }
-        }
-    }
-
     private func handleCustomShortcut(event: NSEvent) -> Bool {
         guard event.type == .keyDown else {
             clearConfiguredShortcutChordState()
@@ -13169,13 +13156,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return true
         }
 
-        // Altitude navigation is presentation-only. Its direct chords never
-        // displace input owned by a terminal, editor, browser, or AppKit control.
-        // Cmd+K itself remains on the existing configurable switcher action above.
-        if !commandPaletteEffectiveInTargetWindow {
+        // Altitude navigation is presentation-only. Option navigation yields to
+        // every typing surface. Cmd+1/Cmd+2 replace cmux's existing global numbered
+        // workspace shortcuts, but still yield to AppKit text input. Cmd+K remains
+        // on the existing configurable switcher action above.
+        if AltitudeConfiguration.isEnabled(), !commandPaletteEffectiveInTargetWindow {
             let targetWindow = resolvedShortcutEventWindow(event) ?? event.window ?? shortcutRoutingActiveWindow
             let isReturn = event.keyCode == 36 || event.keyCode == 76
             let responder = targetWindow?.firstResponder
+            let textInputOwnsEvent = responder is NSTextView || responder is NSTextField
             let isTyping = responder is NSTextView
                 || responder is NSTextField
                 || responder.map { cmuxOwningGhosttyView(for: $0) != nil } == true
@@ -13191,20 +13180,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     return true
                 }
             }
-            if isReturn, !hasOption, !hasControl {
-                let appKitControlOwnsReturn = responder is NSControl
-                    || responder is NSTableView
-                    || responder is NSOutlineView
-                let priority = hasCommand ? "1B" : "1A"
-                if !isTyping,
-                   !appKitControlOwnsReturn,
-                   altitudeHasPrioritySurface(priority, event: event) {
-                    NotificationCenter.default.post(
-                        name: priority == "1B" ? .altitudeGoPriority1B : .altitudeGoPriority1A,
-                        object: targetWindow
-                    )
-                    return true
-                }
+            let priorityIgnoringTextInput = AltitudePriorityShortcut.priority(
+                isAltitudeEnabled: true,
+                characters: chars,
+                keyCode: event.keyCode,
+                modifierFlags: event.modifierFlags,
+                textInputOwnsEvent: false
+            )
+            if priorityIgnoringTextInput != nil, textInputOwnsEvent {
+                return false
+            }
+            if let priority = AltitudePriorityShortcut.priority(
+                isAltitudeEnabled: true,
+                characters: chars,
+                keyCode: event.keyCode,
+                modifierFlags: event.modifierFlags,
+                textInputOwnsEvent: textInputOwnsEvent
+            ) {
+                NotificationCenter.default.post(
+                    name: priority == "1B" ? .altitudeGoPriority1B : .altitudeGoPriority1A,
+                    object: targetWindow
+                )
+                return true
             }
         }
 

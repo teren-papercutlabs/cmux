@@ -40,7 +40,10 @@ struct ProcessDetectedResumeIndexes: Sendable {
         let detectedBindings = SurfaceResumeBindingIndex.processDetectedTmuxBindings(
             fileManager: fileManager,
             processSnapshot: processSnapshot,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            altitudeOfficeAttachHomeDirectory: homeDirectory,
+            altitudeOfficeAttachesEnabled: AltitudeConfiguration.isEnabled()
+                && AltitudeConfiguration().restoreOfficeAttaches
         )
         return ProcessDetectedResumeIndexes(
             restorableAgentIndex: restorableAgentIndex,

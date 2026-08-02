@@ -609,14 +609,19 @@ extension SurfaceResumeBindingIndex {
         return processDetectedTmuxBindings(
             fileManager: fileManager,
             processSnapshot: processSnapshot,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            altitudeOfficeAttachHomeDirectory: NSHomeDirectory(),
+            altitudeOfficeAttachesEnabled: AltitudeConfiguration.isEnabled()
+                && AltitudeConfiguration().restoreOfficeAttaches
         )
     }
 
     static func processDetectedTmuxBindings(
         fileManager: FileManager,
         processSnapshot: CmuxTopProcessSnapshot,
-        capturedAt: TimeInterval
+        capturedAt: TimeInterval,
+        altitudeOfficeAttachHomeDirectory: String = NSHomeDirectory(),
+        altitudeOfficeAttachesEnabled: Bool = false
     ) -> [PanelKey: (binding: SurfaceResumeBindingSnapshot, updatedAt: TimeInterval)] {
         _ = fileManager
         var resolved: [PanelKey: (binding: SurfaceResumeBindingSnapshot, updatedAt: TimeInterval)] = [:]
@@ -628,16 +633,26 @@ extension SurfaceResumeBindingIndex {
                   let processArguments = CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for: process.pid) else {
                 continue
             }
-            guard let binding = TmuxResumeParser.binding(
+            let panelKey = PanelKey(workspaceId: workspaceId, panelId: panelId)
+            let binding = AltitudeOfficeAttachResumeParser.binding(
+                processName: process.name,
+                processPath: process.path,
+                arguments: processArguments.arguments,
+                environment: processArguments.environment,
+                homeDirectory: altitudeOfficeAttachHomeDirectory,
+                isEnabled: altitudeOfficeAttachesEnabled,
+                capturedAt: capturedAt
+            ) ?? TmuxResumeParser.binding(
                 processName: process.name,
                 processPath: process.path,
                 arguments: processArguments.arguments,
                 environment: processArguments.environment,
                 capturedAt: capturedAt
-            ) else {
+            )
+            guard let binding else {
                 continue
             }
-            resolved[PanelKey(workspaceId: workspaceId, panelId: panelId)] = (binding: binding, updatedAt: capturedAt)
+            resolved[panelKey] = (binding: binding, updatedAt: capturedAt)
         }
 
         return resolved
