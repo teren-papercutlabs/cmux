@@ -229,6 +229,20 @@ struct AltitudePriorityShortcutTests {
             textInputOwnsEvent: true
         ) == nil)
     }
+
+    @Test("priority shortcuts focus the globally anointed surfaces directly")
+    func globallyFocusesAnointedSurfaces() {
+        let lead = UUID()
+        let understudy = UUID()
+        let configuration = PcLPrioritySwitcherConfiguration(
+            leadSurfaceId: lead,
+            understudySurfaceId: understudy
+        )
+
+        #expect(AltitudePriorityFocusTarget.surfaceID(for: "1A", configuration: configuration) == lead)
+        #expect(AltitudePriorityFocusTarget.surfaceID(for: "1B", configuration: configuration) == understudy)
+        #expect(AltitudePriorityFocusTarget.surfaceID(for: "2", configuration: configuration) == nil)
+    }
 }
 
 @Suite("Altitude office attach restoration")
