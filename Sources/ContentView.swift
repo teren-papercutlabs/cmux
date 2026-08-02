@@ -1053,8 +1053,9 @@ struct ContentView: View {
         let usesWorkspacePaneOverlay = TmuxOverlayExperimentSettings.target().usesWorkspacePaneOverlay
         let resolvedActivePaneBorderColorHex = WorkspaceTabColorSettings.normalizedHex(activePaneBorderColorHex)
         let shouldShowActivePaneBorder = shouldShowActivePaneBorder(for: workspace, colorHex: resolvedActivePaneBorderColorHex)
-        let shouldShowAltitudeNextUp = AltitudeConfiguration.isEnabled()
-            && AltitudeNextUpFloatPresentation.shouldRender(snapshot: altitudeCoordinator.snapshot)
+        // p3.1 hotfix: cards ruled dead (decision 13/18); hidden ahead of the
+        // patch-4 removal so teren stops paying for condemned chrome.
+        let shouldShowAltitudeNextUp = false
         guard usesWorkspacePaneOverlay || shouldShowActivePaneBorder || shouldShowAltitudeNextUp else { return nil }
 
         let layoutSnapshot = WorkspaceContentView.effectiveTmuxLayoutSnapshot(
