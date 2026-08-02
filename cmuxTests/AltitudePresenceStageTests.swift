@@ -201,6 +201,8 @@ struct AltitudePriorityShortcutTests {
             modifierFlags: [.command],
             textInputOwnsEvent: false
         ) == "1B")
+        #expect(AltitudePriorityShortcut.hint(for: "1A") == "⌘1")
+        #expect(AltitudePriorityShortcut.hint(for: "1B") == "⌘2")
     }
 
     @Test("vanilla, modified chords, and text input retain existing behavior")
@@ -275,6 +277,33 @@ struct AltitudeOfficeAttachResumeTests {
             capturedAt: 1
         ) == nil)
         #expect(AltitudeOfficeAttachResumeParser.binding(
+            processName: "python",
+            processPath: nil,
+            arguments: commonArguments,
+            environment: [:],
+            homeDirectory: "/Users/teren",
+            isEnabled: true,
+            capturedAt: 1
+        ) == nil)
+        #expect(AltitudeOfficeAttachResumeParser.binding(
+            processName: "node",
+            processPath: nil,
+            arguments: ["node", "/Users/teren/pcl-client/office/dist/index.js", "run", "session"],
+            environment: [:],
+            homeDirectory: "/Users/teren",
+            isEnabled: true,
+            capturedAt: 1
+        ) == nil)
+        #expect(AltitudeOfficeAttachResumeParser.binding(
+            processName: "node",
+            processPath: nil,
+            arguments: ["node", "/Users/teren/pcl-client/office/dist/index.js", "a", "session;echo unsafe"],
+            environment: [:],
+            homeDirectory: "/Users/teren",
+            isEnabled: true,
+            capturedAt: 1
+        ) == nil)
+        #expect(AltitudeOfficeAttachResumeParser.binding(
             processName: "node",
             processPath: nil,
             arguments: commonArguments,
@@ -291,6 +320,30 @@ struct AltitudeOfficeAttachResumeTests {
         #expect(AltitudeConfiguration(defaults: defaults).restoreOfficeAttaches)
         defaults.set(false, forKey: AltitudeConfiguration.restoreOfficeAttachesKey)
         #expect(!AltitudeConfiguration(defaults: defaults).restoreOfficeAttaches)
+    }
+
+    @Test("captured office bindings are gated again at execution time")
+    func restoreExecutionGate() {
+        #expect(AltitudeOfficeAttachResumePolicy.allowsRestore(
+            bindingKind: "altitude-office-attach",
+            isAltitudeEnabled: true,
+            restoreOfficeAttaches: true
+        ))
+        #expect(!AltitudeOfficeAttachResumePolicy.allowsRestore(
+            bindingKind: "altitude-office-attach",
+            isAltitudeEnabled: true,
+            restoreOfficeAttaches: false
+        ))
+        #expect(!AltitudeOfficeAttachResumePolicy.allowsRestore(
+            bindingKind: "altitude-office-attach",
+            isAltitudeEnabled: false,
+            restoreOfficeAttaches: true
+        ))
+        #expect(AltitudeOfficeAttachResumePolicy.allowsRestore(
+            bindingKind: "tmux",
+            isAltitudeEnabled: false,
+            restoreOfficeAttaches: false
+        ))
     }
 }
 
