@@ -133,7 +133,7 @@ export function drawMenu(
         draw: (screenRow) => drawSessionRow(adapter, screenRow, item, item.sessionId === selectedID, false),
       });
       if (item.sessionId === selectedID) {
-        const detail = `${item.lifecycleState} · ${item.runtime} · idle ${formatDuration(item.idleSeconds)} · ${item.sessionId.slice(0, 8)}`;
+        const detail = `${item.lifecycleState} · ${item.runtime} · ${t("idle")} ${formatDuration(item.idleSeconds)} · ${item.sessionId.slice(0, 8)}`;
         body.push({
           sessionID: item.sessionId,
           draw: (screenRow) => adapter.drawRow(screenRow, clip(`    ${detail}`, width), { fg: COLOR.muted, bg: COLOR.selection }),

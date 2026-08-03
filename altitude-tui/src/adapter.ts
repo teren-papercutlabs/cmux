@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createCliRenderer, TextAttributes, TextRenderable, type CliRenderer, type KeyEvent, type MouseEvent } from "@opentui/core";
+import { t } from "./strings";
 
 export type AdapterMouseEvent = {
   kind: "hover" | "press" | "drag" | "release" | "click";
@@ -134,7 +135,7 @@ export async function createAdapter(): Promise<MenuAdapter> {
     enableMouseMovement: true,
     targetFps: 30,
   });
-  process.stdout.write("\u001b]0;Altitude menu\u0007");
+  process.stdout.write(`\u001b]0;${t("windowTitle")}\u0007`);
   return new OpenTUIAdapter(renderer);
 }
 
@@ -145,13 +146,13 @@ function controlCLI(): string {
 async function runControl(args: string[]): Promise<void> {
   const processHandle = Bun.spawn([controlCLI(), ...args], { stdout: "ignore", stderr: "pipe" });
   const status = await processHandle.exited;
-  if (status !== 0) throw new Error((await new Response(processHandle.stderr).text()).trim() || `cmux exited ${status}`);
+  if (status !== 0) throw new Error((await new Response(processHandle.stderr).text()).trim() || `${t("controlExited")} ${status}`);
 }
 
 async function readControl(args: string[]): Promise<string> {
   const processHandle = Bun.spawn([controlCLI(), ...args], { stdout: "pipe", stderr: "pipe" });
   const status = await processHandle.exited;
-  if (status !== 0) throw new Error((await new Response(processHandle.stderr).text()).trim() || `cmux exited ${status}`);
+  if (status !== 0) throw new Error((await new Response(processHandle.stderr).text()).trim() || `${t("controlExited")} ${status}`);
   return new Response(processHandle.stdout).text();
 }
 

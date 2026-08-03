@@ -1,6 +1,7 @@
 const messages = {
   en: {
     menuTitle: "ALTITUDE · menu",
+    windowTitle: "Altitude menu",
     returnHint: "⌘0 return",
     unassigned: "unassigned",
     notLive: "not live",
@@ -19,9 +20,12 @@ const messages = {
     arrived: "arrived",
     finished: "finished",
     nowNeedsYou: "now needs you",
+    idle: "idle",
+    controlExited: "cmux exited",
   },
   ja: {
     menuTitle: "ALTITUDE · メニュー",
+    windowTitle: "Altitude メニュー",
     returnHint: "⌘0 戻る",
     unassigned: "未割り当て",
     notLive: "オフライン",
@@ -40,6 +44,8 @@ const messages = {
     arrived: "件追加",
     finished: "完了",
     nowNeedsYou: "件が要確認",
+    idle: "アイドル",
+    controlExited: "cmux が終了しました",
   },
 } as const;
 
