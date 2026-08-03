@@ -63,11 +63,34 @@ function defaultReadFleetConfig() {
   }
 }
 
+/**
+ * Build the actual invocation from the resolved command parts. An ssh prefix
+ * needs the REMOTE command collapsed into one shell-quoted string — ssh joins
+ * argv with spaces and hands it to the remote shell, so unquoted SQL gets
+ * re-parsed there ("zsh: parse error").
+ */
+export function buildMarshalInvocation(commandParts, marshalArgs) {
+  if (commandParts[0] === 'ssh' && commandParts.length >= 3) {
+    const remoteBin = commandParts[commandParts.length - 1];
+    const sshOptionsAndTarget = commandParts.slice(1, -1);
+    const quote = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
+    return {
+      bin: 'ssh',
+      args: [...sshOptionsAndTarget, [remoteBin, ...marshalArgs].map(quote).join(' ')],
+    };
+  }
+  const [bin, ...prefix] = commandParts;
+  return { bin, args: [...prefix, ...marshalArgs] };
+}
+
 export async function getFleetState(options = {}) {
   if (options.sources) return projectFleetState(await options.sources.collect());
   const invoke = options.run ?? run;
-  const [marshalBin, ...marshalPrefix] = options.marshalCommand ?? marshalCommand();
-  const result = await invoke(marshalBin, [...marshalPrefix, 'db', 'query', '--sql', SESSION_SQL], {
+  const { bin, args } = buildMarshalInvocation(
+    options.marshalCommand ?? marshalCommand(),
+    ['db', 'query', '--sql', SESSION_SQL],
+  );
+  const result = await invoke(bin, args, {
     timeoutMs: options.timeoutMs ?? 30_000,
   });
   const parsed = parseJsonStdout(result, 'marshal db query');

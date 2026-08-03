@@ -42,3 +42,17 @@ test('marshalCommand: env override wins, then config marshalCmd, then local mars
   assert.deepEqual(marshalCommand({}, () => null), ['marshal']);
   assert.deepEqual(marshalCommand({}, () => ({ marshalCmd: [] })), ['marshal']);
 });
+
+test('buildMarshalInvocation quotes the remote command for ssh, passes locals through', async () => {
+  const { buildMarshalInvocation } = await import('../src/fleet-state.mjs');
+  const local = buildMarshalInvocation(['marshal'], ['db', 'query', '--sql', 'SELECT 1']);
+  assert.deepEqual(local, { bin: 'marshal', args: ['db', 'query', '--sql', 'SELECT 1'] });
+
+  const sql = "SELECT 'a)b'\nFROM x";
+  const remote = buildMarshalInvocation(['ssh', '-o', 'BatchMode=yes', 'user@host', 'marshal'], ['db', 'query', '--sql', sql]);
+  assert.equal(remote.bin, 'ssh');
+  assert.deepEqual(remote.args.slice(0, 3), ['-o', 'BatchMode=yes', 'user@host']);
+  const remoteCommand = remote.args[3];
+  assert.ok(remoteCommand.startsWith("'marshal' 'db' 'query' '--sql' '"));
+  assert.ok(remoteCommand.includes("'\\''a)b'\\''"));
+});
