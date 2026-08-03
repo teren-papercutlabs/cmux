@@ -5751,15 +5751,23 @@ struct ContentView: View {
         let priorityPayload = Dictionary(priorityBySession.map { ($0.value, $0.key) }, uniquingKeysWith: { first, _ in first })
         let priorityJSON = (try? JSONSerialization.data(withJSONObject: priorityPayload))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-        guard let panel = workspace.newTerminalSurface(
-            inPane: paneIDs[paneIndex],
-            focus: true,
-            workingDirectory: tuiDirectory,
-            initialCommand: AltitudeTUIHostPresentation.launchCommand(
+        // Ghostty execs initialCommand directly, NOT through a shell — a
+        // compound "cd … && …" string dies instantly (pane flickers closed).
+        // Route it through the same self-executing script wrapper the Dock
+        // uses for shell-semantics startup commands.
+        let launchScript = DockSplitStore.shellStartupScript(
+            command: AltitudeTUIHostPresentation.launchCommand(
                 bunPath: bunPath,
                 tuiDirectory: tuiDirectory,
                 returnTargetPath: returnTargetPath
             ),
+            workingDirectory: tuiDirectory
+        )
+        guard let panel = workspace.newTerminalSurface(
+            inPane: paneIDs[paneIndex],
+            focus: true,
+            workingDirectory: tuiDirectory,
+            initialCommand: launchScript,
             startupEnvironment: ["ALTITUDE_PRIORITY_JSON": priorityJSON]
         ) else { return }
         altitudeTUIHostState = AltitudeTUIHostState(
