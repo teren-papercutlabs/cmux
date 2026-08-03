@@ -32,10 +32,13 @@ function titleFor(row: MenuRow): string {
   return row.agentName === row.displayName ? row.displayName : `${row.agentName} · ${row.displayName}`;
 }
 
-function priorityLabel(state: MenuState, id: string | undefined): string {
-  if (!id) return t("unassigned");
+function priorityLine(state: MenuState, priority: "1A" | "1B", id: string | undefined): string {
+  if (!id) return `${priority}  ${t("unassigned")}`;
   const row = state.rows.find((item) => item.sessionId === id);
-  return row ? titleFor(row) : t("notLive");
+  if (!row) return `${priority}  ${t("notLive")}`;
+  const stateLabel = row.lifecycleState === "working" ? t("working") : row.lifecycleState;
+  const needLabel = row.needsYou ? t("needsYouShort") : t("noNeed");
+  return `${priority}  ${titleFor(row)}  ${stateLabel} · ${needLabel} · ${formatDuration(row.idleSeconds)}`;
 }
 
 function drawSessionRow(
@@ -86,8 +89,8 @@ export function drawMenu(
   else adapter.drawRow(line++, "", { bg: COLOR.canvas });
 
   const priorities = options.priorities ?? {};
-  adapter.drawRow(line++, clip(`1A  ${priorityLabel(state, priorities["1A"])}  · ⌘1`, width), { fg: COLOR.text, bg: COLOR.canvas });
-  adapter.drawRow(line++, clip(`1B  ${priorityLabel(state, priorities["1B"])}  · ⌘2`, width), { fg: COLOR.muted, bg: COLOR.canvas });
+  adapter.drawRow(line++, clip(`${priorityLine(state, "1A", priorities["1A"])}  · ⌘1`, width), { fg: COLOR.text, bg: COLOR.canvas });
+  adapter.drawRow(line++, clip(`${priorityLine(state, "1B", priorities["1B"])}  · ⌘2`, width), { fg: COLOR.muted, bg: COLOR.canvas });
   adapter.drawRow(line++, "", { bg: COLOR.canvas });
 
   const body: BodyEntry[] = [];
