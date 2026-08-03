@@ -9,10 +9,6 @@ struct TmuxWorkspacePaneOverlayView: View {
     let activePaneBorderColorHex: String?
     let flashStartedAt: Date?
     let flashReason: WorkspaceAttentionFlashReason?
-    let altitudeMenu: AltitudeMenuOverlayState?
-    let altitudeTargetRect: CGRect?
-    let onAltitudeSelectionChange: (String) -> Void
-    let onAltitudeJump: (AltitudeNextUpItem) -> Void
     @State private var completedFlashStartedAt: Date?
 
     var body: some View {
@@ -20,24 +16,6 @@ struct TmuxWorkspacePaneOverlayView: View {
             overlayContent
                 .allowsHitTesting(false)
 
-            if let altitudeMenu, let altitudeTargetRect {
-                AltitudeMenuView(
-                    snapshot: altitudeMenu.snapshot,
-                    priorityRows: altitudeMenu.priorityRows,
-                    selectedItemID: altitudeMenu.selectedItemID,
-                    arrival: altitudeMenu.arrival,
-                    quietSeconds: altitudeMenu.quietSeconds,
-                    errorMessage: altitudeMenu.errorMessage,
-                    onSelectionChange: onAltitudeSelectionChange,
-                    onJump: onAltitudeJump
-                )
-                .frame(
-                    width: altitudeTargetRect.width,
-                    height: altitudeTargetRect.height,
-                    alignment: .topLeading
-                )
-                .offset(x: altitudeTargetRect.minX, y: altitudeTargetRect.minY)
-            }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

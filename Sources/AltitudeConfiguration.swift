@@ -130,56 +130,55 @@ enum AltitudeMenuShortcut {
     }
 }
 
-enum AltitudeMenuNavigationAction: Equatable {
-    case dismiss
-    case move(Int)
-    case submit
-
-    static func resolve(
-        isPresented: Bool,
-        keyCode: UInt16,
-        modifierFlags: NSEvent.ModifierFlags,
-        textInputOwnsEvent: Bool
-    ) -> Self? {
-        guard isPresented, !textInputOwnsEvent else { return nil }
-        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
-            .subtracting([.capsLock, .numericPad, .function])
-        switch (keyCode, flags) {
-        case (53, []): return .dismiss
-        case (125, []): return .move(1)
-        case (126, []): return .move(-1)
-        case (36, []), (76, []): return .submit
-        default: return nil
-        }
-    }
-}
-
-enum AltitudeMenuDurationLabel {
-    static func waiting(_ seconds: Int) -> String {
-        guard seconds >= 60 else {
-            return String(localized: "altitude.wait.now", defaultValue: "now")
-        }
-        return compact(seconds)
+enum AltitudeTUIHostPresentation {
+    enum ToggleDecision: Equatable {
+        case returnTo(UUID)
+        case focusTUI
+        case createTUI
     }
 
-    static func quiet(_ seconds: Int) -> String {
-        guard seconds >= 60 else {
-            return String(localized: "altitude.menu.duration.lessThanMinute", defaultValue: "<1m")
-        }
-        return compact(seconds)
+    static func targetPaneIndex(paneCount: Int) -> Int? {
+        guard paneCount > 0 else { return nil }
+        return min(2, paneCount - 1)
     }
 
-    private static func compact(_ seconds: Int) -> String {
-        if seconds < 3_600 {
-            return String(
-                format: String(localized: "altitude.menu.duration.minutes", defaultValue: "%lldm"),
-                Int64(max(1, seconds / 60))
-            )
-        }
-        return String(
-            format: String(localized: "altitude.menu.duration.hours", defaultValue: "%lldh"),
-            Int64(max(1, seconds / 3_600))
-        )
+    static func toggleDecision(
+        focusedPanelID: UUID?,
+        tuiPanelID: UUID?,
+        returnPanelID: UUID?
+    ) -> ToggleDecision {
+        guard let tuiPanelID else { return .createTUI }
+        if focusedPanelID == tuiPanelID, let returnPanelID { return .returnTo(returnPanelID) }
+        return .focusTUI
+    }
+
+    static func launchCommand(
+        bunPath: String,
+        tuiDirectory: String,
+        returnTargetPath: String
+    ) -> String {
+        let directory = shellQuote(tuiDirectory)
+        let returnPath = shellQuote(returnTargetPath)
+        let bun = shellQuote(bunPath)
+        return "cd \(directory) && exec env ALTITUDE_RETURN_TARGET_FILE=\(returnPath) \(bun) run src/index.ts"
+    }
+
+    static func sourceTUIDirectory(sourceFile: String = #filePath) -> String {
+        URL(fileURLWithPath: sourceFile)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("altitude-tui", isDirectory: true)
+            .path
+    }
+
+    static func bunPath(fileManager: FileManager = .default) -> String? {
+        let home = fileManager.homeDirectoryForCurrentUser.path
+        return ["/opt/homebrew/bin/bun", "/usr/local/bin/bun", "\(home)/.bun/bin/bun"]
+            .first(where: { fileManager.isExecutableFile(atPath: $0) })
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
 

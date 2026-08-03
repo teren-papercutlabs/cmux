@@ -46,7 +46,7 @@ describe("Altitude menu state", () => {
     ], { now });
 
     expect(state.everythingElse.map((row) => row.sessionId)).toEqual([
-      "oldest", "new-signal", "new-tool", "busy",
+      "oldest", "new-tool", "new-signal", "busy",
     ]);
     expect(state.everythingElse.find((row) => row.sessionId === "new-signal")?.idleSeconds).toBe(120);
     expect(state.everythingElse.find((row) => row.sessionId === "new-tool")?.idleSeconds).toBe(300);

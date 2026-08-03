@@ -21,10 +21,6 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
         lastRenderState != nil || !containerView.isHidden
     }
 
-    var isAltitudeMenuPresented: Bool {
-        lastRenderState?.altitudeMenuIsPresented == true
-    }
-
     static func controller(for window: NSWindow, createIfNeeded: Bool) -> WindowTmuxWorkspacePaneOverlayController? {
         if let existing = objc_getAssociatedObject(window, &tmuxWorkspacePaneWindowOverlayKey) as? WindowTmuxWorkspacePaneOverlayController {
             return existing
@@ -44,11 +40,7 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: nil,
                 activePaneBorderColorHex: nil,
                 flashStartedAt: nil,
-                flashReason: nil,
-                altitudeMenu: nil,
-                altitudeTargetRect: nil,
-                onAltitudeSelectionChange: { _ in },
-                onAltitudeJump: { _ in }
+                flashReason: nil
             )
         )
         super.init()
@@ -129,15 +121,9 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: model.activePaneBorderRect,
                 activePaneBorderColorHex: model.activePaneBorderColorHex,
                 flashStartedAt: model.flashStartedAt,
-                flashReason: model.flashReason,
-                altitudeMenu: state.altitudeMenu,
-                altitudeTargetRect: state.altitudeTargetRect,
-                onAltitudeSelectionChange: { [weak self] sessionID in
-                    self?.handleAltitudeSelectionChange(sessionID)
-                },
-                onAltitudeJump: { [weak self] item in self?.handleAltitudeJump(item) }
+                flashReason: model.flashReason
             )
-            containerView.interactiveRect = state.altitudeMenu == nil ? nil : state.altitudeTargetRect
+            containerView.interactiveRect = nil
             containerView.alphaValue = 1
             containerView.isHidden = false
         } else {
@@ -149,32 +135,12 @@ final class WindowTmuxWorkspacePaneOverlayController: NSObject {
                 activePaneBorderRect: nil,
                 activePaneBorderColorHex: nil,
                 flashStartedAt: nil,
-                flashReason: nil,
-                altitudeMenu: nil,
-                altitudeTargetRect: nil,
-                onAltitudeSelectionChange: { _ in },
-                onAltitudeJump: { _ in }
+                flashReason: nil
             )
             containerView.interactiveRect = nil
             containerView.alphaValue = 0
             containerView.isHidden = true
         }
-    }
-
-    private func handleAltitudeSelectionChange(_ sessionID: String) {
-        NotificationCenter.default.post(
-            name: .altitudeMenuSelect,
-            object: window,
-            userInfo: ["sessionID": sessionID]
-        )
-    }
-
-    private func handleAltitudeJump(_ item: AltitudeNextUpItem) {
-        NotificationCenter.default.post(
-            name: .altitudeMenuJump,
-            object: window,
-            userInfo: ["sessionID": item.sessionId]
-        )
     }
 
     func scheduleGeometryRefresh(stateProvider: @MainActor @escaping () -> TmuxWorkspacePaneOverlayRenderState?) {

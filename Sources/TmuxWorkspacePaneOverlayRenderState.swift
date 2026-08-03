@@ -1,15 +1,6 @@
 import CoreGraphics
 import Foundation
 
-struct AltitudeMenuOverlayState: Equatable {
-    let snapshot: AltitudeNextUpSnapshot
-    let priorityRows: [AltitudePriorityMenuRow]
-    let selectedItemID: String?
-    let arrival: AltitudeMenuArrival?
-    let quietSeconds: Int
-    let errorMessage: String?
-}
-
 struct TmuxWorkspacePaneOverlayRenderState: Equatable {
     let workspaceId: UUID
     let unreadRects: [CGRect]
@@ -18,9 +9,6 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
     let activePaneBorderColorHex: String?
     let flashToken: UInt64
     let flashReason: WorkspaceAttentionFlashReason?
-    let altitudeMenu: AltitudeMenuOverlayState?
-    let altitudeTargetRect: CGRect?
-    let altitudeMenuIsPresented: Bool
 
     init(
         workspaceId: UUID,
@@ -29,10 +17,7 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
         activePaneBorderRect: CGRect? = nil,
         activePaneBorderColorHex: String? = nil,
         flashToken: UInt64,
-        flashReason: WorkspaceAttentionFlashReason?,
-        altitudeMenu: AltitudeMenuOverlayState? = nil,
-        altitudeTargetRect: CGRect? = nil,
-        altitudeMenuIsPresented: Bool = false
+        flashReason: WorkspaceAttentionFlashReason?
     ) {
         self.workspaceId = workspaceId
         self.unreadRects = unreadRects
@@ -41,8 +26,5 @@ struct TmuxWorkspacePaneOverlayRenderState: Equatable {
         self.activePaneBorderColorHex = activePaneBorderColorHex
         self.flashToken = flashToken
         self.flashReason = flashReason
-        self.altitudeMenu = altitudeMenu
-        self.altitudeTargetRect = altitudeTargetRect
-        self.altitudeMenuIsPresented = altitudeMenuIsPresented
     }
 }

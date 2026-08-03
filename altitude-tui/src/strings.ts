@@ -1,0 +1,43 @@
+const messages = {
+  en: {
+    menuTitle: "ALTITUDE · menu",
+    returnHint: "⌘0 return",
+    unassigned: "unassigned",
+    notLive: "not live",
+    needsYou: "NEEDS YOU",
+    nothingNeedsYou: "nothing needs you",
+    waitingForReply: "waiting for your reply",
+    everythingElse: "EVERYTHING ELSE",
+    descendingIdle: "descending idle",
+    noOtherSessions: "no other live sessions",
+    footer: "↑↓ / jk move   enter jump   esc return",
+    busy: "busy",
+    sinceYouLeft: "since you left",
+    arrived: "arrived",
+    finished: "finished",
+    nowNeedsYou: "now needs you",
+  },
+  ja: {
+    menuTitle: "ALTITUDE · メニュー",
+    returnHint: "⌘0 戻る",
+    unassigned: "未割り当て",
+    notLive: "オフライン",
+    needsYou: "要確認",
+    nothingNeedsYou: "確認が必要な項目はありません",
+    waitingForReply: "返信を待っています",
+    everythingElse: "その他すべて",
+    descendingIdle: "アイドル時間の降順",
+    noOtherSessions: "他のライブセッションはありません",
+    footer: "↑↓ / jk 移動   enter ジャンプ   esc 戻る",
+    busy: "実行中",
+    sinceYouLeft: "離席後",
+    arrived: "件追加",
+    finished: "完了",
+    nowNeedsYou: "件が要確認",
+  },
+} as const;
+
+export type MessageKey = keyof typeof messages.en;
+const locale = (process.env.LC_ALL ?? process.env.LANG ?? "en").toLowerCase().startsWith("ja") ? "ja" : "en";
+
+export function t(key: MessageKey): string { return messages[locale][key]; }

@@ -10,6 +10,7 @@ WITH open_lifecycle AS (
     l.state,
     l.state_changed_at,
     l.created_at,
+    l.last_tool_call_at,
     s.agent_name AS direct_agent,
     s.tmux_session,
     s.session_tag,

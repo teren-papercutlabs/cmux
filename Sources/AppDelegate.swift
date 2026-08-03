@@ -13149,31 +13149,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             let responder = targetWindow?.firstResponder
             let textInputOwnsEvent = responder is NSTextView || responder is NSTextField
 
-            if let targetWindow,
-               let action = AltitudeMenuNavigationAction.resolve(
-                   isPresented: WindowTmuxWorkspacePaneOverlayController.controller(
-                    for: targetWindow,
-                    createIfNeeded: false
-                   )?.isAltitudeMenuPresented == true,
-                   keyCode: event.keyCode,
-                   modifierFlags: event.modifierFlags,
-                   textInputOwnsEvent: textInputOwnsEvent
-               ) {
-                switch action {
-                case .dismiss:
-                    NotificationCenter.default.post(name: .altitudeMenuDismiss, object: targetWindow)
-                case .move(let delta):
-                    NotificationCenter.default.post(
-                        name: .altitudeMenuMoveSelection,
-                        object: targetWindow,
-                        userInfo: ["delta": delta]
-                    )
-                case .submit:
-                    NotificationCenter.default.post(name: .altitudeMenuSubmit, object: targetWindow)
-                }
-                return true
-            }
-
             let menuIgnoringTextInput = AltitudeMenuShortcut.matches(
                 isAltitudeEnabled: true,
                 characters: chars,

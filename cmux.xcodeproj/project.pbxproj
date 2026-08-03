@@ -132,7 +132,6 @@
 		A17D01030000000000000000 /* AltitudeFleetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02030000000000000000 /* AltitudeFleetService.swift */; };
 		A17D01040000000000000000 /* AltitudeNextUpItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02040000000000000000 /* AltitudeNextUpItem.swift */; };
 		A17D01050000000000000000 /* AltitudeNextUpSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02050000000000000000 /* AltitudeNextUpSnapshot.swift */; };
-		A17D01060000000000000000 /* AltitudeNextUpStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02060000000000000000 /* AltitudeNextUpStrip.swift */; };
 		A17D01070000000000000000 /* AltitudeNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02070000000000000000 /* AltitudeNotifications.swift */; };
 		A17D010B0000000000000000 /* AltitudeOfficeAttachResumeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D020B0000000000000000 /* AltitudeOfficeAttachResumeParser.swift */; };
 		A17D01080000000000000000 /* AltitudePresenceStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D02080000000000000000 /* AltitudePresenceStage.swift */; };
@@ -2272,7 +2271,6 @@ C0DE71B10000000000000001 /* AppDelegate+AgentChatNotifications.swift in Sources 
 		A17D02030000000000000000 /* AltitudeFleetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeFleetService.swift; sourceTree = "<group>"; };
 		A17D02040000000000000000 /* AltitudeNextUpItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNextUpItem.swift; sourceTree = "<group>"; };
 		A17D02050000000000000000 /* AltitudeNextUpSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNextUpSnapshot.swift; sourceTree = "<group>"; };
-		A17D02060000000000000000 /* AltitudeNextUpStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNextUpStrip.swift; sourceTree = "<group>"; };
 		A17D02070000000000000000 /* AltitudeNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeNotifications.swift; sourceTree = "<group>"; };
 		A17D020B0000000000000000 /* AltitudeOfficeAttachResumeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudeOfficeAttachResumeParser.swift; sourceTree = "<group>"; };
 		A17D02080000000000000000 /* AltitudePresenceStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltitudePresenceStage.swift; sourceTree = "<group>"; };
@@ -4456,7 +4454,6 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 				A17D02030000000000000000 /* AltitudeFleetService.swift */,
 				A17D02040000000000000000 /* AltitudeNextUpItem.swift */,
 				A17D02050000000000000000 /* AltitudeNextUpSnapshot.swift */,
-				A17D02060000000000000000 /* AltitudeNextUpStrip.swift */,
 				A17D02070000000000000000 /* AltitudeNotifications.swift */,
 				A17D02080000000000000000 /* AltitudePresenceStage.swift */,
 				A17D0B0A0000000000000000 /* AltitudeSurfaceMatcher.swift */,
@@ -6895,7 +6892,6 @@ C0DE71B10000000000000002 /* AppDelegate+AgentChatNotifications.swift */ = {isa =
 				A17D01030000000000000000 /* AltitudeFleetService.swift in Sources */,
 				A17D01040000000000000000 /* AltitudeNextUpItem.swift in Sources */,
 				A17D01050000000000000000 /* AltitudeNextUpSnapshot.swift in Sources */,
-				A17D01060000000000000000 /* AltitudeNextUpStrip.swift in Sources */,
 				A17D01070000000000000000 /* AltitudeNotifications.swift in Sources */,
 				A17D010B0000000000000000 /* AltitudeOfficeAttachResumeParser.swift in Sources */,
 				A17D01080000000000000000 /* AltitudePresenceStage.swift in Sources */,
