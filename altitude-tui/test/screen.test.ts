@@ -49,4 +49,20 @@ describe("menu viewport", () => {
     expect(adapter.rows.some(({ text }) => text.includes("session-19"))).toBe(true);
     expect(Math.max(...adapter.rows.map(({ row }) => row))).toBeLessThan(adapter.height);
   });
+
+  test("mains render folded by default and only expand on request", () => {
+    class TallAdapter extends RecordingAdapter { override readonly height = 24; }
+    const adapter = new TallAdapter();
+    const main: FleetSession = { ...session(0), sessionId: "kleya-main", displayName: "kleya-main", isMain: true };
+    const state = deriveMenuState([session(1), main], { now: new Date(30_000) });
+
+    drawMenu(adapter, state, { selectedID: "session-1", now: new Date(30_000) });
+    const folded = adapter.rows.map(({ text }) => text).join("\n");
+    expect(folded).toContain("MAINS  1");
+    expect(folded).not.toContain("kleya-main");
+
+    drawMenu(adapter, state, { selectedID: "session-1", now: new Date(30_000), mainsExpanded: true });
+    const expanded = adapter.rows.map(({ text }) => text).join("\n");
+    expect(expanded).toContain("kleya-main");
+  });
 });

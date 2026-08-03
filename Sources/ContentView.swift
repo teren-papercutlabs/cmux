@@ -5686,15 +5686,26 @@ struct ContentView: View {
                     returnPanelID: state.returnPanelID
                 ) {
                 case .returnTo(let panelID):
-                    guard let returnWorkspaceID = state.returnWorkspaceID,
-                          let returnWorkspace = tabManager.tabs.first(where: { $0.id == returnWorkspaceID }),
-                          returnWorkspace.panels[panelID] != nil else { return }
-                    focusCommandPaletteSwitcherSurfaceTarget(
-                        windowId: windowId,
-                        tabManager: tabManager,
-                        workspaceId: returnWorkspaceID,
-                        panelId: panelID
-                    )
+                    if let returnWorkspaceID = state.returnWorkspaceID,
+                       let returnWorkspace = tabManager.tabs.first(where: { $0.id == returnWorkspaceID }),
+                       returnWorkspace.panels[panelID] != nil {
+                        focusCommandPaletteSwitcherSurfaceTarget(
+                            windowId: windowId,
+                            tabManager: tabManager,
+                            workspaceId: returnWorkspaceID,
+                            panelId: panelID
+                        )
+                    } else if let fallbackPanelID = menuWorkspace.panels.keys.first(where: { $0 != state.panelID }) {
+                        // The return target vanished (pane closed while in the
+                        // menu). Cmd-0 must never be a dead key: fall back to
+                        // any live non-menu panel instead of doing nothing.
+                        focusCommandPaletteSwitcherSurfaceTarget(
+                            windowId: windowId,
+                            tabManager: tabManager,
+                            workspaceId: menuWorkspace.id,
+                            panelId: fallbackPanelID
+                        )
+                    }
                 case .focusTUI:
                     let previous = menuIsFocused
                         ? state.returnPanelID
@@ -5734,7 +5745,10 @@ struct ContentView: View {
         let tuiDirectory = AltitudeTUIHostPresentation.sourceTUIDirectory()
         guard let bunPath = AltitudeTUIHostPresentation.bunPath() else { return }
         let priorityBySession = altitudePriorityBySessionId()
-        let priorityPayload = Dictionary(uniqueKeysWithValues: priorityBySession.map { ($0.value, $0.key) })
+        // Two checkpoint ids can legitimately carry the same priority label
+        // (multi-window / stale restored bindings); inverting with
+        // uniqueKeysWithValues would trap. Keep the first binding.
+        let priorityPayload = Dictionary(priorityBySession.map { ($0.value, $0.key) }, uniquingKeysWith: { first, _ in first })
         let priorityJSON = (try? JSONSerialization.data(withJSONObject: priorityPayload))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         guard let panel = workspace.newTerminalSurface(

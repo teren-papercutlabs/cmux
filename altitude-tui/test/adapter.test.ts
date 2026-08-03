@@ -10,3 +10,22 @@ describe("OpenTUI adapter event mapping", () => {
     expect(mapMouseEvent({ name: "click", x: 12, y: 8, button: 0 })).toEqual({ kind: "click", column: 12, row: 8 });
   });
 });
+
+describe("jump target matching", () => {
+  const { surfaceMatches } = require("../src/adapter");
+  const surface = {
+    id: "u-1",
+    title: "[1A] [mosh] edna-tgg",
+    cwd: "/Users/teren/edna-notes",
+    command: "office a edna-tgg",
+  };
+  test("matches named fields, with prefixes stripped", () => {
+    expect(surfaceMatches(surface, "edna-tgg", true)).toBeTrue();
+  });
+  test("a cwd or command substring can never steal the match", () => {
+    // "edna" appears in cwd and command of an unrelated surface; only NAMED
+    // fields may match, so a surface named otherwise must not.
+    const unrelated = { id: "u-2", title: "kleya-hive-drive", cwd: "/Users/teren/edna-notes", command: "tail edna.log" };
+    expect(surfaceMatches(unrelated, "edna", false)).toBeFalse();
+  });
+});

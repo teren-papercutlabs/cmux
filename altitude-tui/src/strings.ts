@@ -22,6 +22,9 @@ const messages = {
     nowNeedsYou: "now needs you",
     idle: "idle",
     controlExited: "cmux exited",
+    mains: "MAINS",
+    mainsExpandHint: "enter/m expand",
+    mainsCollapseHint: "enter/m fold",
   },
   ja: {
     menuTitle: "ALTITUDE · メニュー",
@@ -46,6 +49,9 @@ const messages = {
     nowNeedsYou: "件が要確認",
     idle: "アイドル",
     controlExited: "cmux が終了しました",
+    mains: "メイン",
+    mainsExpandHint: "enter/m 展開",
+    mainsCollapseHint: "enter/m 折りたたみ",
   },
 } as const;
 

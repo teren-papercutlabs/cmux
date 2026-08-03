@@ -517,6 +517,48 @@ struct AltitudeTUIHostPresentationTests {
         #expect(command.contains("'/Users/test/.bun/bin/bun' run src/index.ts"))
         #expect(command.contains("'/Users/test/cmux checkout/altitude-tui'"))
         #expect(command.contains("ALTITUDE_RETURN_TARGET_FILE="))
+        // node_modules is gitignored: first launch on a fresh checkout must
+        // install or the pane dies with a module error.
+        #expect(command.contains("[ -d node_modules ] || '/Users/test/.bun/bin/bun' install --frozen-lockfile"))
+    }
+
+    @Test("the TUI directory resolves at runtime, never from the build machine's #filePath, when any runtime source exists")
+    func tuiDirectoryResolution() throws {
+        let fileManager = FileManager.default
+        let realDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("altitude-tui-resolution-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: realDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: realDirectory) }
+        let suiteName = "altitude-tui-resolution-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Env override wins.
+        #expect(AltitudeTUIHostPresentation.sourceTUIDirectory(
+            sourceFile: "/build-machine/worktree/Sources/AltitudeConfiguration.swift",
+            environment: ["ALTITUDE_TUI_DIR": realDirectory.path],
+            defaults: defaults,
+            bundleResourceURL: nil
+        ) == realDirectory.path)
+
+        // Then the per-user default.
+        defaults.set(realDirectory.path, forKey: "AltitudeTUIDirectory")
+        #expect(AltitudeTUIHostPresentation.sourceTUIDirectory(
+            sourceFile: "/build-machine/worktree/Sources/AltitudeConfiguration.swift",
+            environment: [:],
+            defaults: defaults,
+            bundleResourceURL: nil
+        ) == realDirectory.path)
+
+        // A configured path that does not exist is skipped, not trusted.
+        defaults.set("/nonexistent/tui", forKey: "AltitudeTUIDirectory")
+        let fallback = AltitudeTUIHostPresentation.sourceTUIDirectory(
+            sourceFile: "/build-machine/worktree/Sources/AltitudeConfiguration.swift",
+            environment: [:],
+            defaults: defaults,
+            bundleResourceURL: nil
+        )
+        #expect(fallback == "/build-machine/worktree/altitude-tui")
     }
 
     @Test("command zero toggles back to the previous surface when the TUI is already focused")

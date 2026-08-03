@@ -3,6 +3,9 @@ import {
   advanceSelection,
   deriveMenuState,
   describeArrival,
+  idleLabel,
+  MAINS_TOGGLE_ID,
+  selectableIds,
   type FleetSession,
 } from "../src/model";
 
@@ -77,11 +80,51 @@ describe("Altitude menu state", () => {
     const state = deriveMenuState([main, question, needsReply, working], { now });
 
     expect(state.needsYou.map((row) => row.sessionId)).toEqual(["question", "reply"]);
-    expect(state.everythingElse.map((row) => row.sessionId)).toContain("teren-main");
+    // Decision 23: mains NEVER appear in the flat list — not in needs-you,
+    // not interleaved into everything-else. They live only in the mains bucket.
+    expect(state.everythingElse.map((row) => row.sessionId)).not.toContain("teren-main");
+    expect(state.mains.map((row) => row.sessionId)).toEqual(["teren-main"]);
     expect(state.rows.map((row) => row.sessionId)).toEqual([
-      "question", "reply", "teren-main", "working",
+      "question", "reply", "working", "teren-main",
     ]);
     expect(state.rows.every((row) => row.selectable)).toBeTrue();
+  });
+
+  test("mains are one extra step away: folded behind the toggle, expanded on demand", () => {
+    const state = deriveMenuState([
+      session({ sessionId: "worker-a", lastToolCallAt: "2026-08-03T03:00:00.000Z" }),
+      session({ sessionId: "teren-main", isMain: true, lastToolCallAt: "2026-08-03T02:00:00.000Z" }),
+      session({ sessionId: "amelia-main", isMain: true, lastToolCallAt: "2026-08-03T01:00:00.000Z" }),
+    ], { now });
+
+    // Folded: no main session is selectable; the toggle is the only step.
+    expect(selectableIds(state, false)).toEqual(["worker-a", MAINS_TOGGLE_ID]);
+    // Expanded: mains follow the toggle, descending idle.
+    expect(selectableIds(state, true)).toEqual([
+      "worker-a", MAINS_TOGGLE_ID, "amelia-main", "teren-main",
+    ]);
+  });
+
+  test("no mains means no toggle stop", () => {
+    const state = deriveMenuState([session({ sessionId: "worker-a" })], { now });
+    expect(selectableIds(state, false)).toEqual(["worker-a"]);
+    expect(selectableIds(state, true)).toEqual(["worker-a"]);
+  });
+
+  test("unknown activity sorts as STALEST, never as freshly active, and renders as dash", () => {
+    const state = deriveMenuState([
+      session({ sessionId: "recent", lastToolCallAt: "2026-08-03T03:59:00.000Z" }),
+      session({ sessionId: "no-activity" }),
+      session({ sessionId: "old", lastToolCallAt: "2026-08-03T01:00:00.000Z" }),
+    ], { now });
+
+    expect(state.everythingElse.map((row) => row.sessionId)).toEqual([
+      "no-activity", "old", "recent",
+    ]);
+    const unknown = state.everythingElse[0]!;
+    expect(unknown.idleKnown).toBeFalse();
+    expect(idleLabel(unknown)).toBe("—");
+    expect(idleLabel(state.everythingElse[1]!)).toBe("3h");
   });
 
   test("selection wraps and expansion follows the selected row inline", () => {

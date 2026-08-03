@@ -156,21 +156,50 @@ async function readControl(args: string[]): Promise<string> {
   return new Response(processHandle.stdout).text();
 }
 
+/** Fields a surface may legitimately be addressed by. Matching the whole
+ *  serialized surface would let a cwd or command substring steal the match
+ *  and focus an unrelated pane. */
+const SURFACE_NAME_KEYS = [
+  "title", "name", "tabTitle", "displayName",
+  "checkpointId", "resumeCheckpointId", "sessionId", "tmuxSession",
+] as const;
+
+export function surfaceNameCandidates(surface: Record<string, unknown>): string[] {
+  return SURFACE_NAME_KEYS
+    .map((key) => surface[key])
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function normalizedName(value: string): string {
+  // Tab titles carry seat/transport prefixes ("[1A] ", "[mosh] ") that the
+  // fleet layer's session names do not.
+  return value.toLowerCase().replace(/^\[\d+[a-z]\] /, "").replace(/^\[mosh\] /, "");
+}
+
+export function surfaceMatches(surface: Record<string, unknown>, query: string, exact: boolean): boolean {
+  const needle = query.toLowerCase();
+  return surfaceNameCandidates(surface).some((candidate) => {
+    const name = normalizedName(candidate);
+    return exact ? name === needle : name.includes(needle);
+  });
+}
+
 /** Uses cmux's existing control-socket CLI; this program creates no IPC service. */
 export async function jumpToSession(query: string): Promise<void> {
   const tree = JSON.parse(await readControl(["--json", "--id-format", "uuids", "tree", "--all"])) as {
     windows?: Array<{ workspaces?: Array<{ id?: string; panes?: Array<{ surfaces?: Array<Record<string, unknown>> }> }> }>;
   };
-  const needle = query.toLowerCase();
-  for (const window of tree.windows ?? []) {
-    for (const workspace of window.workspaces ?? []) {
-      for (const pane of workspace.panes ?? []) {
-        for (const surface of pane.surfaces ?? []) {
-          const searchable = JSON.stringify(surface).toLowerCase();
-          const panelID = typeof surface.id === "string" ? surface.id : null;
-          if (panelID && workspace.id && searchable.includes(needle)) {
-            await runControl(["focus-panel", "--workspace", workspace.id, "--panel", panelID]);
-            return;
+  // Exact name match first; substring on named fields only as fallback.
+  for (const exact of [true, false]) {
+    for (const window of tree.windows ?? []) {
+      for (const workspace of window.workspaces ?? []) {
+        for (const pane of workspace.panes ?? []) {
+          for (const surface of pane.surfaces ?? []) {
+            const panelID = typeof surface.id === "string" ? surface.id : null;
+            if (panelID && workspace.id && surfaceMatches(surface, query, exact)) {
+              await runControl(["focus-panel", "--workspace", workspace.id, "--panel", panelID]);
+              return;
+            }
           }
         }
       }

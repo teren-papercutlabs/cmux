@@ -1,5 +1,5 @@
 import type { MenuAdapter } from "./adapter";
-import { formatDuration, type MenuRow, type MenuState } from "./model";
+import { formatDuration, idleLabel, MAINS_TOGGLE_ID, type MenuRow, type MenuState } from "./model";
 import { t } from "./strings";
 
 const COLOR = {
@@ -38,7 +38,7 @@ function priorityLine(state: MenuState, priority: "1A" | "1B", id: string | unde
   if (!row) return `${priority}  ${t("notLive")}`;
   const stateLabel = row.lifecycleState === "working" ? t("working") : row.lifecycleState;
   const needLabel = row.needsYou ? t("needsYouShort") : t("noNeed");
-  return `${priority}  ${titleFor(row)}  ${stateLabel} · ${needLabel} · ${formatDuration(row.idleSeconds)}`;
+  return `${priority}  ${titleFor(row)}  ${stateLabel} · ${needLabel} · ${idleLabel(row)}`;
 }
 
 function drawSessionRow(
@@ -49,7 +49,7 @@ function drawSessionRow(
   oldest: boolean,
 ): void {
   const width = adapter.width;
-  const duration = formatDuration(item.needsYou ? item.waitSeconds : item.idleSeconds);
+  const duration = item.needsYou ? formatDuration(item.waitSeconds) : idleLabel(item);
   const marker = selected ? "›" : " ";
   const status = item.lifecycleState === "working" ? t("busy") : item.runtime;
   const suffix = `${status.padStart(6)}  ${duration.padStart(5)}`;
@@ -70,6 +70,7 @@ export function drawMenu(
     error?: string | null;
     priorities?: PriorityMap;
     now?: Date;
+    mainsExpanded?: boolean;
   } = {},
 ): DrawResult {
   const now = options.now ?? new Date();
@@ -133,11 +134,45 @@ export function drawMenu(
         draw: (screenRow) => drawSessionRow(adapter, screenRow, item, item.sessionId === selectedID, false),
       });
       if (item.sessionId === selectedID) {
-        const detail = `${item.lifecycleState} · ${item.runtime} · ${t("idle")} ${formatDuration(item.idleSeconds)} · ${item.sessionId.slice(0, 8)}`;
+        const detail = `${item.lifecycleState} · ${item.runtime} · ${t("idle")} ${idleLabel(item)} · ${item.sessionId.slice(0, 8)}`;
         body.push({
           sessionID: item.sessionId,
           draw: (screenRow) => adapter.drawRow(screenRow, clip(`    ${detail}`, width), { fg: COLOR.muted, bg: COLOR.selection }),
         });
+      }
+    }
+  }
+
+  // MAINS: a separate FOLDED section one extra step away (decision 23). The
+  // toggle line itself is a selection stop; mains rows render only expanded.
+  if (state.mains.length > 0) {
+    const mainsExpanded = options.mainsExpanded ?? false;
+    body.push({ draw: (screenRow) => adapter.drawRow(screenRow, "", { bg: COLOR.canvas }) });
+    body.push({
+      sessionID: MAINS_TOGGLE_ID,
+      draw: (screenRow) => {
+        const chevron = mainsExpanded ? "▾" : "▸";
+        const hint = mainsExpanded ? t("mainsCollapseHint") : t("mainsExpandHint");
+        adapter.drawRow(screenRow, `${chevron} ${t("mains")}  ${state.mains.length} · ${hint}`, {
+          fg: COLOR.muted,
+          bg: selectedID === MAINS_TOGGLE_ID ? COLOR.selection : COLOR.canvas,
+          bold: true,
+        });
+      },
+    });
+    if (mainsExpanded) {
+      for (const item of state.mains) {
+        body.push({
+          sessionID: item.sessionId,
+          draw: (screenRow) => drawSessionRow(adapter, screenRow, item, item.sessionId === selectedID, false),
+        });
+        if (item.sessionId === selectedID) {
+          const detail = `${item.lifecycleState} · ${item.runtime} · ${t("idle")} ${idleLabel(item)} · ${item.sessionId.slice(0, 8)}`;
+          body.push({
+            sessionID: item.sessionId,
+            draw: (screenRow) => adapter.drawRow(screenRow, clip(`    ${detail}`, width), { fg: COLOR.muted, bg: COLOR.selection }),
+          });
+        }
       }
     }
   }

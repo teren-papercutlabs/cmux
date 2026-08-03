@@ -19,6 +19,7 @@ export interface FleetSession {
 
 export interface MenuRow extends FleetSession {
   idleSeconds: number;
+  idleKnown: boolean;
   waitSeconds: number;
   selectable: true;
   needsYou: boolean;
@@ -27,8 +28,13 @@ export interface MenuRow extends FleetSession {
 export interface MenuState {
   needsYou: MenuRow[];
   everythingElse: MenuRow[];
+  mains: MenuRow[];
   rows: MenuRow[];
 }
+
+/** Sentinel id for the folded-mains toggle line (decision 23: mains sit one
+ *  extra step away, never interleaved with working sessions). */
+export const MAINS_TOGGLE_ID = "__altitude_mains_toggle__";
 
 function epoch(value: string | null): number | null {
   if (!value) return null;
@@ -46,29 +52,55 @@ function isExplicitNeed(session: FleetSession): boolean {
   return session.signalNeedsReply || session.signalStatus === "question" || session.signalStatus === "blocked";
 }
 
+/** Descending idle, with unknown-activity rows treated as the STALEST (they
+ *  have no observed activity at all), never as freshly active. */
+function descendingIdleKey(row: MenuRow): number {
+  return row.idleKnown ? row.idleSeconds : Number.POSITIVE_INFINITY;
+}
+
 export function deriveMenuState(
   sessions: FleetSession[],
   options: { now?: Date } = {},
 ): MenuState {
   const now = (options.now ?? new Date()).getTime();
-  const rows = sessions.map<MenuRow>((session) => {
+  const allRows = sessions.map<MenuRow>((session) => {
     const activity = newestActivity(session);
     const signal = epoch(session.signalCreatedAt);
     return {
       ...session,
       idleSeconds: activity === null ? 0 : Math.max(0, Math.floor((now - activity) / 1000)),
+      idleKnown: activity !== null,
       waitSeconds: signal === null ? 0 : Math.max(0, Math.floor((now - signal) / 1000)),
       selectable: true,
       needsYou: !session.isMain && isExplicitNeed(session),
     };
   });
-  const needsYou = rows
+  const byDescendingIdle = (a: MenuRow, b: MenuRow): number =>
+    descendingIdleKey(b) - descendingIdleKey(a) || a.displayName.localeCompare(b.displayName);
+  const needsYou = allRows
     .filter((row) => row.needsYou)
     .sort((a, b) => b.waitSeconds - a.waitSeconds || a.displayName.localeCompare(b.displayName));
-  const everythingElse = rows
-    .filter((row) => !row.needsYou)
-    .sort((a, b) => b.idleSeconds - a.idleSeconds || a.displayName.localeCompare(b.displayName));
-  return { needsYou, everythingElse, rows: [...needsYou, ...everythingElse] };
+  const everythingElse = allRows
+    .filter((row) => !row.needsYou && !row.isMain)
+    .sort(byDescendingIdle);
+  const mains = allRows
+    .filter((row) => !row.needsYou && row.isMain)
+    .sort(byDescendingIdle);
+  return { needsYou, everythingElse, mains, rows: [...needsYou, ...everythingElse, ...mains] };
+}
+
+/** The ids reachable by keyboard selection given the fold state. The mains
+ *  toggle line is itself a stop, so mains are always exactly one step away. */
+export function selectableIds(state: MenuState, mainsExpanded: boolean): string[] {
+  const ids = [
+    ...state.needsYou.map((row) => row.sessionId),
+    ...state.everythingElse.map((row) => row.sessionId),
+  ];
+  if (state.mains.length > 0) {
+    ids.push(MAINS_TOGGLE_ID);
+    if (mainsExpanded) ids.push(...state.mains.map((row) => row.sessionId));
+  }
+  return ids;
 }
 
 export function advanceSelection(ids: string[], selected: string | undefined, delta: number): string | undefined {
@@ -93,8 +125,15 @@ export function describeArrival(before: MenuState, after: MenuState): string | n
 }
 
 export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds)) return "—";
   if (seconds < 60) return "<1m";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
   return `${Math.floor(seconds / 86400)}d`;
+}
+
+/** Display form of a row's idle: unknown activity renders as "—", never as
+ *  "just active". */
+export function idleLabel(row: MenuRow): string {
+  return row.idleKnown ? formatDuration(row.idleSeconds) : "—";
 }

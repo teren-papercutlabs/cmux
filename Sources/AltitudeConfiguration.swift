@@ -160,11 +160,37 @@ enum AltitudeTUIHostPresentation {
         let directory = shellQuote(tuiDirectory)
         let returnPath = shellQuote(returnTargetPath)
         let bun = shellQuote(bunPath)
-        return "cd \(directory) && exec env ALTITUDE_RETURN_TARGET_FILE=\(returnPath) \(bun) run src/index.ts"
+        // node_modules is gitignored and `bun run` does not auto-install for a
+        // script path, so a fresh checkout must install before first launch or
+        // the pane shows a dead module error forever.
+        return "cd \(directory) && { [ -d node_modules ] || \(bun) install --frozen-lockfile; } && exec env ALTITUDE_RETURN_TARGET_FILE=\(returnPath) \(bun) run src/index.ts"
     }
 
-    static func sourceTUIDirectory(sourceFile: String = #filePath) -> String {
-        URL(fileURLWithPath: sourceFile)
+    /// Resolve the altitude-tui checkout at RUNTIME. `#filePath` bakes the
+    /// build machine's worktree path into the binary — a path that does not
+    /// exist on the machine the app is installed on — so it is only the
+    /// last-resort dev fallback. Precedence: explicit env override, per-user
+    /// default, app-bundle copy, then the compile-time path.
+    static func sourceTUIDirectory(
+        sourceFile: String = #filePath,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaults: UserDefaults = .standard,
+        bundleResourceURL: URL? = Bundle.main.resourceURL,
+        fileManager: FileManager = .default
+    ) -> String {
+        var isDirectory: ObjCBool = false
+        func usable(_ path: String?) -> String? {
+            guard let path, !path.isEmpty,
+                  fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else { return nil }
+            return path
+        }
+        if let override = usable(environment["ALTITUDE_TUI_DIR"]) { return override }
+        if let configured = usable(defaults.string(forKey: "AltitudeTUIDirectory")) { return configured }
+        if let bundled = usable(bundleResourceURL?.appendingPathComponent("altitude-tui", isDirectory: true).path) {
+            return bundled
+        }
+        return URL(fileURLWithPath: sourceFile)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("altitude-tui", isDirectory: true)
