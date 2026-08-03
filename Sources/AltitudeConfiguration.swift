@@ -137,9 +137,20 @@ enum AltitudeTUIHostPresentation {
         case createTUI
     }
 
-    static func targetPaneIndex(paneCount: Int) -> Int? {
-        guard paneCount > 0 else { return nil }
-        return min(2, paneCount - 1)
+    /// cmd-0 with a detached stack window: false (default) = jump to the
+    /// window the menu lives in; true = the menu comes to the current window.
+    /// Toggle: defaults write com.cmuxterm.app AltitudeMenuFollowsFocus -bool true
+    static let menuFollowsFocusKey = "AltitudeMenuFollowsFocus"
+
+    /// The menu belongs in the STACK region: the first pane not holding a seat
+    /// surface. Positional index-2 targeting put the menu in a seat pane the
+    /// moment the layout was anything but the canonical three columns.
+    static func targetPane<Pane: Equatable>(
+        paneIDs: [Pane],
+        seatPanes: Set<Pane>
+    ) -> Pane? where Pane: Hashable {
+        guard !paneIDs.isEmpty else { return nil }
+        return paneIDs.first(where: { !seatPanes.contains($0) }) ?? paneIDs.last
     }
 
     static func toggleDecision(

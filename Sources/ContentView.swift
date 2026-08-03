@@ -835,12 +835,21 @@ private final class SelectedWorkspaceDirectoryObserver: ObservableObject {
     }
 }
 
-private struct AltitudeTUIHostState: Equatable {
+struct AltitudeTUIHostState: Equatable {
     let workspaceID: UUID
     let panelID: UUID
     let returnWorkspaceID: UUID?
     let returnPanelID: UUID?
     let returnTargetPath: String
+}
+
+/// The menu is ONE app-wide surface that may live in any window (the stack can
+/// be a third pane or its own window on another screen). Per-window @State hid
+/// the menu from every other window's cmd-0, which then created duplicates.
+@MainActor
+final class AltitudeTUIHostRegistry {
+    static let shared = AltitudeTUIHostRegistry()
+    var state: AltitudeTUIHostState?
 }
 
 struct ContentView: View {
@@ -913,7 +922,10 @@ struct ContentView: View {
             viewerID: AltitudeConfiguration().viewerID
         )
     )
-    @State private var altitudeTUIHostState: AltitudeTUIHostState?
+    private var altitudeTUIHostState: AltitudeTUIHostState? {
+        get { AltitudeTUIHostRegistry.shared.state }
+        nonmutating set { AltitudeTUIHostRegistry.shared.state = newValue }
+    }
     @State private var altitudeNavigationError: String?
     @State private var backgroundWorkspacePrimeCoordinator = BackgroundWorkspacePrimeCoordinator()
     @State private var workspacePresentationModeRuntimeCache = WorkspacePresentationModeRuntimeCache()
@@ -5679,14 +5691,45 @@ struct ContentView: View {
     }
 
     private func toggleAltitudeTUI(in workspace: Workspace) {
+        // The menu may live in ANY window (detached stack window on another
+        // screen). Locate it globally, then honor the ruled toggle:
+        // default = jump to the menu's window; AltitudeMenuFollowsFocus=true
+        // = the menu comes to the current window instead.
         if let state = altitudeTUIHostState,
-           let menuWorkspace = tabManager.tabs.first(where: { $0.id == state.workspaceID }),
+           let located = AppDelegate.shared?.locateSurface(surfaceId: state.panelID),
+           let menuWorkspace = located.tabManager.tabs.first(where: { $0.id == located.workspaceId }),
            let terminal = menuWorkspace.panels[state.panelID] as? TerminalPanel {
             let isLive: Bool = switch terminal.sendInputResult("") {
             case .sent, .queued, .inputQueueFull: true
             case .surfaceUnavailable, .processExited: false
             }
-            if isLive {
+            if isLive, located.windowId != windowId {
+                if UserDefaults.standard.bool(forKey: AltitudeTUIHostPresentation.menuFollowsFocusKey) {
+                    // Menu comes to me: close the remote instance and fall
+                    // through to creation in this window. The menu is
+                    // stateless, so recreation is equivalent to a move.
+                    _ = menuWorkspace.closePanel(state.panelID, force: true)
+                    altitudeTUIHostState = nil
+                } else {
+                    // Jump to the menu's window, remembering where we came
+                    // from so esc/cmd-0 can return across windows.
+                    writeAltitudeReturnTarget(workspaceID: workspace.id, panelID: workspace.focusedPanelId, path: state.returnTargetPath)
+                    altitudeTUIHostState = AltitudeTUIHostState(
+                        workspaceID: state.workspaceID,
+                        panelID: state.panelID,
+                        returnWorkspaceID: workspace.id,
+                        returnPanelID: workspace.focusedPanelId,
+                        returnTargetPath: state.returnTargetPath
+                    )
+                    focusCommandPaletteSwitcherSurfaceTarget(
+                        windowId: located.windowId,
+                        tabManager: located.tabManager,
+                        workspaceId: located.workspaceId,
+                        panelId: state.panelID
+                    )
+                    return
+                }
+            } else if isLive {
                 let menuIsFocused = workspace.id == menuWorkspace.id
                     && workspace.focusedPanelId == state.panelID
                 switch AltitudeTUIHostPresentation.toggleDecision(
@@ -5702,6 +5745,15 @@ struct ContentView: View {
                             windowId: windowId,
                             tabManager: tabManager,
                             workspaceId: returnWorkspaceID,
+                            panelId: panelID
+                        )
+                    } else if let returned = AppDelegate.shared?.locateSurface(surfaceId: panelID) {
+                        // The return target lives in ANOTHER window (we jumped
+                        // to the menu's window from there): return across.
+                        focusCommandPaletteSwitcherSurfaceTarget(
+                            windowId: returned.windowId,
+                            tabManager: returned.tabManager,
+                            workspaceId: returned.workspaceId,
                             panelId: panelID
                         )
                     } else if let fallbackPanelID = menuWorkspace.panels.keys.first(where: { $0 != state.panelID }) {
@@ -5744,7 +5796,14 @@ struct ContentView: View {
         }
 
         let paneIDs = workspace.bonsplitController.allPaneIds
-        guard let paneIndex = AltitudeTUIHostPresentation.targetPaneIndex(paneCount: paneIDs.count) else { return }
+        let seatConfiguration = PcLPrioritySwitcherConfiguration.load()
+        let seatPanes = Set(
+            [seatConfiguration.leadSurfaceId, seatConfiguration.understudySurfaceId]
+                .compactMap { $0 }
+                .filter { workspace.panels[$0] != nil }
+                .compactMap { workspace.paneId(forPanelId: $0) }
+        )
+        guard let menuPane = AltitudeTUIHostPresentation.targetPane(paneIDs: paneIDs, seatPanes: seatPanes) else { return }
         let returnPanelID = workspace.focusedPanelId
         let returnTargetPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-altitude-return-\(workspace.id.uuidString).json")
@@ -5771,7 +5830,7 @@ struct ContentView: View {
             returnTargetPath: returnTargetPath
         ) else { return }
         guard let panel = workspace.newTerminalSurface(
-            inPane: paneIDs[paneIndex],
+            inPane: menuPane,
             focus: true,
             workingDirectory: tuiDirectory,
             initialCommand: launchScript,

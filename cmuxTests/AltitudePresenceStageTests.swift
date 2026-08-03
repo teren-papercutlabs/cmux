@@ -445,13 +445,17 @@ struct AltitudeOfficeAttachResumeTests {
 
 @Suite("Altitude TUI host presentation")
 struct AltitudeTUIHostPresentationTests {
-    @Test("the menu always targets the third pane with a last-pane fallback")
-    func targetPaneIndex() {
-        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 0) == nil)
-        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 1) == 0)
-        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 2) == 1)
-        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 3) == 2)
-        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 5) == 2)
+    @Test("the menu targets the first NON-SEAT pane, falling back to the last pane")
+    func menuTargetPane() {
+        // Canonical 3-pane: seats in panes a+b, stack c -> menu goes to c.
+        #expect(AltitudeTUIHostPresentation.targetPane(paneIDs: ["a", "b", "c"], seatPanes: ["a", "b"]) == "c")
+        // 2-pane vertical-screen shape: seat a, stack b -> menu goes to b.
+        #expect(AltitudeTUIHostPresentation.targetPane(paneIDs: ["a", "b"], seatPanes: ["a"]) == "b")
+        // Stack pane sits FIRST: position must not matter.
+        #expect(AltitudeTUIHostPresentation.targetPane(paneIDs: ["c", "a", "b"], seatPanes: ["a", "b"]) == "c")
+        // Every pane is a seat pane -> last pane rather than nowhere.
+        #expect(AltitudeTUIHostPresentation.targetPane(paneIDs: ["a", "b"], seatPanes: ["a", "b"]) == "b")
+        #expect(AltitudeTUIHostPresentation.targetPane(paneIDs: [String](), seatPanes: []) == nil)
     }
 
     @Test("command zero opens only outside AppKit text input")

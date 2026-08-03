@@ -4265,34 +4265,47 @@ final class Workspace: Identifiable, ObservableObject {
 
     func anointAltitudeSeat(_ role: PcLPrioritySwitcherConfiguration.Role, panelID: UUID) {
         guard panels[panelID] != nil else { return }
-        let paneIDs = bonsplitController.allPaneIds
-        let targetIndex = role == .lead ? 0 : 1
-        guard paneIDs.indices.contains(targetIndex) else { NSSound.beep(); return }
 
-        var configuration = PcLPrioritySwitcherConfiguration.load()
+        // Identity-based SWAP, never positional: the new tab takes the pane of
+        // the role's CURRENT holder, and the old holder lands where the new
+        // one came from (usually the stack). Positional pane indices broke the
+        // moment a seat pane closed; and moving the old holder out FIRST let
+        // the emptied seat pane auto-close, so the incoming move targeted a
+        // dead pane and the seat visually vanished (teren, 2026-08-03).
+        let previousConfiguration = PcLPrioritySwitcherConfiguration.load()
+        let previousHolderID: UUID? = {
+            let id = role == .lead
+                ? previousConfiguration.leadSurfaceId
+                : previousConfiguration.understudySurfaceId
+            guard let id, id != panelID, panels[id] != nil else { return nil }
+            return id
+        }()
+
+        var configuration = previousConfiguration
         configuration.assign(role: role, surfaceId: panelID)
         configuration.save()
 
         isApplyingAltitudeSeatMove = true
         defer { isApplyingAltitudeSeatMove = false }
-        let fluidPane = paneIDs.dropFirst(2).first ?? paneId(forPanelId: panelID)
-        let targetPane = paneIDs[targetIndex]
-        if let fluidPane {
-            for tab in bonsplitController.tabs(inPane: targetPane) {
-                guard let existingPanelID = panelIdFromSurfaceId(tab.id), existingPanelID != panelID else { continue }
-                _ = moveSurface(panelId: existingPanelID, toPane: fluidPane, focus: false)
-            }
+
+        if let previousHolderID,
+           let seatPane = paneId(forPanelId: previousHolderID),
+           let sourcePane = paneId(forPanelId: panelID),
+           seatPane != sourcePane {
+            // Order matters: move the NEW surface into the seat pane first so
+            // it can never empty and auto-close, THEN move the old holder to
+            // where the new one came from.
+            _ = moveSurface(panelId: panelID, toPane: seatPane, atIndex: 0, focus: true)
+            _ = moveSurface(panelId: previousHolderID, toPane: sourcePane, focus: false)
         }
-        _ = moveSurface(panelId: panelID, toPane: targetPane, atIndex: 0, focus: true)
+        if let previousHolderID,
+           configuration.leadSurfaceId != previousHolderID,
+           configuration.understudySurfaceId != previousHolderID {
+            // Evicted from its seat entirely: an ordinary tab is not pinned.
+            setPanelPinned(panelId: previousHolderID, pinned: false)
+        }
         setPanelPinned(panelId: panelID, pinned: true)
 
-        for (otherRole, otherPanelID) in [(PcLPrioritySwitcherConfiguration.Role.lead, configuration.leadSurfaceId), (.understudy, configuration.understudySurfaceId)] {
-            guard let otherPanelID, otherPanelID != panelID else { continue }
-            let otherIndex = otherRole == .lead ? 0 : 1
-            guard paneIDs.indices.contains(otherIndex) else { continue }
-            _ = moveSurface(panelId: otherPanelID, toPane: paneIDs[otherIndex], atIndex: 0, focus: false)
-            setPanelPinned(panelId: otherPanelID, pinned: true)
-        }
         bonsplitController.invalidateHostProvidedChrome()
         objectWillChange.send()
         NotificationCenter.default.post(name: .altitudeSeatConfigurationDidChange, object: self)
@@ -12248,12 +12261,23 @@ extension Workspace: BonsplitDelegate {
         // In a remote tmux mirror, split means tmux `split-window`; always veto
         // local splits so the mirror never gains an orphan pane.
         guard isRemoteTmuxMirror else {
+            // Seat panes are identified by CONTENT (the pane holding the 1A/1B
+            // surface), never by position — positional prefix(2) made a
+            // two-pane workspace permanently un-splittable once the third pane
+            // died (2026-08-03). And when EVERY pane is a seat pane, splitting
+            // is the only way to add the stack back, so repairability wins.
+            if isApplyingAltitudeSeatMove { return true }
             let configuration = PcLPrioritySwitcherConfiguration.load()
-            let hasAltitudeSeat = [configuration.leadSurfaceId, configuration.understudySurfaceId]
-                .compactMap { $0 }
-                .contains { panels[$0] != nil }
-            guard hasAltitudeSeat else { return true }
-            return !Set(controller.allPaneIds.prefix(2)).contains(pane)
+            let seatPanes = Set(
+                [configuration.leadSurfaceId, configuration.understudySurfaceId]
+                    .compactMap { $0 }
+                    .filter { panels[$0] != nil }
+                    .compactMap { paneId(forPanelId: $0) }
+            )
+            guard !seatPanes.isEmpty else { return true }
+            let hasNonSeatPane = controller.allPaneIds.contains { !seatPanes.contains($0) }
+            guard hasNonSeatPane else { return true }
+            return !seatPanes.contains(pane)
         }
         if let tabId = bonsplitController.selectedTab(inPane: pane)?.id,
            let panelId = panelIdFromSurfaceId(tabId) {
