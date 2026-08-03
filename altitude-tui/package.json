@@ -4,7 +4,9 @@
   "type": "module",
   "packageManager": "bun@1.3.14",
   "scripts": {
-    "spike": "bun run src/drag-spike.ts"
+    "spike": "bun run src/drag-spike.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@opentui/core": "0.4.5"

@@ -443,34 +443,15 @@ struct AltitudeOfficeAttachResumeTests {
     }
 }
 
-@Suite("Altitude menu presentation")
-struct AltitudeMenuPresentationTests {
-    private func item(
-        id: String,
-        tmuxSession: String?,
-        why: String = "Waiting for a decision on the reader controls"
-    ) -> AltitudeNextUpItem {
-        AltitudeNextUpItem(
-            agentId: "xianxing",
-            agentName: "Xing",
-            sessionId: id,
-            jumpSessionId: id,
-            tmuxSession: tmuxSession,
-            priority: nil,
-            classification: "actionable",
-            why: .init(label: "needs you", confidence: 1, line: why),
-            waitingSince: "2026-08-01T20:00:00Z",
-            waitSeconds: 300
-        )
-    }
-
+@Suite("Altitude TUI host presentation")
+struct AltitudeTUIHostPresentationTests {
     @Test("the menu always targets the third pane with a last-pane fallback")
     func targetPaneIndex() {
-        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 0) == nil)
-        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 1) == 0)
-        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 2) == 1)
-        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 3) == 2)
-        #expect(AltitudeMenuPresentation.targetPaneIndex(paneCount: 5) == 2)
+        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 0) == nil)
+        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 1) == 0)
+        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 2) == 1)
+        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 3) == 2)
+        #expect(AltitudeTUIHostPresentation.targetPaneIndex(paneCount: 5) == 2)
     }
 
     @Test("command zero opens only outside AppKit text input")
@@ -505,34 +486,6 @@ struct AltitudeMenuPresentationTests {
         ))
     }
 
-    @Test("presented-menu keys yield to AppKit text input")
-    func menuNavigationRespectsTextInput() {
-        #expect(AltitudeMenuNavigationAction.resolve(
-            isPresented: true,
-            keyCode: 125,
-            modifierFlags: [],
-            textInputOwnsEvent: false
-        ) == .move(1))
-        #expect(AltitudeMenuNavigationAction.resolve(
-            isPresented: true,
-            keyCode: 36,
-            modifierFlags: [],
-            textInputOwnsEvent: false
-        ) == .submit)
-        #expect(AltitudeMenuNavigationAction.resolve(
-            isPresented: true,
-            keyCode: 53,
-            modifierFlags: [],
-            textInputOwnsEvent: false
-        ) == .dismiss)
-        #expect(AltitudeMenuNavigationAction.resolve(
-            isPresented: true,
-            keyCode: 36,
-            modifierFlags: [],
-            textInputOwnsEvent: true
-        ) == nil)
-    }
-
     @Test("anointed title prefixes replace rather than stack and clear cleanly")
     func anointedTabTitles() {
         let panelID = UUID()
@@ -553,137 +506,31 @@ struct AltitudeMenuPresentationTests {
         ) == nil)
     }
 
-    @Test("main sessions are excluded and the oldest eligible wait is emphasized")
-    func filtersMainsAndFindsOldest() throws {
-        let snapshot = AltitudeNextUpSnapshot(
-            schemaVersion: 1,
-            collectedAt: "2026-08-01T20:05:00Z",
-            items: [
-                item(id: "main", tmuxSession: "xianxing-main-teren"),
-                item(id: "newer", tmuxSession: "xianxing-altitude-third-pane"),
-                AltitudeNextUpItem(
-                    agentId: "edna", agentName: "Edna", sessionId: "oldest",
-                    jumpSessionId: "oldest", tmuxSession: "edna-tgg", priority: nil,
-                    classification: "actionable",
-                    why: .init(label: "needs you", confidence: 1, line: "Choose A or B"),
-                    waitingSince: "2026-08-01T19:00:00Z", waitSeconds: 3_900
-                ),
-            ],
-            processingCount: 4,
-            idleCount: 2,
-            processing: []
+    @Test("command construction uses the configured Bun and TUI directory without shell interpolation")
+    func commandConstruction() {
+        let command = AltitudeTUIHostPresentation.launchCommand(
+            bunPath: "/Users/test/.bun/bin/bun",
+            tuiDirectory: "/Users/test/cmux checkout/altitude-tui",
+            returnTargetPath: "/Users/test/Library/Application Support/cmux/altitude-return.json"
         )
-
-        let rows = AltitudeMenuPresentation.needsYouItems(snapshot: snapshot)
-        #expect(rows.map(\.sessionId) == ["newer", "oldest"])
-        #expect(AltitudeMenuPresentation.oldestWaitingID(in: rows) == "oldest")
+        #expect(command.contains("exec env"))
+        #expect(command.contains("'/Users/test/.bun/bin/bun' run src/index.ts"))
+        #expect(command.contains("'/Users/test/cmux checkout/altitude-tui'"))
+        #expect(command.contains("ALTITUDE_RETURN_TARGET_FILE="))
     }
 
-    @Test("moving selection replaces the inline expansion")
-    func selectionMovesAndCollapsesPrevious() {
-        let rows = [
-            item(id: "one", tmuxSession: "one"),
-            item(id: "two", tmuxSession: "two"),
-            item(id: "three", tmuxSession: "three"),
-        ]
-        #expect(AltitudeMenuPresentation.movedSelection(currentID: nil, delta: 1, items: rows) == "one")
-        #expect(AltitudeMenuPresentation.movedSelection(currentID: "one", delta: 1, items: rows) == "two")
-        #expect(AltitudeMenuPresentation.movedSelection(currentID: "one", delta: -1, items: rows) == "three")
-    }
-
-    @Test("arrival reports one consequential resolver delta and omits stable snapshots")
-    func arrivalDelta() throws {
-        let prior = AltitudeNextUpSnapshot(
-            schemaVersion: 1, collectedAt: "before",
-            items: [item(id: "finished", tmuxSession: "kleya-hive-drive")],
-            processingCount: 1, idleCount: 0, processing: []
-        )
-        let current = AltitudeNextUpSnapshot(
-            schemaVersion: 1, collectedAt: "after",
-            items: [item(id: "waiting", tmuxSession: "edna-tgg")],
-            processingCount: 1, idleCount: 0, processing: []
-        )
-        let delta = try #require(AltitudeMenuPresentation.arrival(previous: prior, current: current))
-        #expect(delta.kind == .finished)
-        #expect(delta.sessionName == "kleya-hive-drive")
-        #expect(AltitudeMenuPresentation.arrival(previous: current, current: current) == nil)
-    }
-
-    @Test("live resolver updates refresh arrival, selection, and workspace dismissal")
-    func interactionStateTracksLiveChanges() throws {
-        let prior = AltitudeNextUpSnapshot(
-            schemaVersion: 1, collectedAt: "before",
-            items: [item(id: "finished", tmuxSession: "kleya-hive-drive")],
-            processingCount: 1, idleCount: 0, processing: []
-        )
-        let current = AltitudeNextUpSnapshot(
-            schemaVersion: 1, collectedAt: "after",
-            items: [item(id: "waiting", tmuxSession: "edna-tgg")],
-            processingCount: 1, idleCount: 0, processing: []
-        )
-        var state = AltitudeMenuInteractionState()
-        state.open(snapshot: prior, now: Date(timeIntervalSince1970: 10))
-        state.update(snapshot: current, previous: prior, now: Date(timeIntervalSince1970: 20))
-        #expect(state.arrival?.kind == .finished)
-        #expect(state.selectedItemID == "waiting")
-        #expect(state.previousSnapshot == current)
-
-        state.workspaceDidChange()
-        #expect(!state.isPresented)
-        #expect(state.selectedItemID == nil)
-    }
-
-    @Test("quiet durations do not render the wait-state word now")
-    func localizedDurationKindsRemainDistinct() {
-        #expect(AltitudeMenuDurationLabel.quiet(0) != AltitudeMenuDurationLabel.waiting(0))
-        #expect(!AltitudeMenuDurationLabel.quiet(0).isEmpty)
-        #expect(!AltitudeMenuDurationLabel.waiting(3_600).isEmpty)
-    }
-}
-
-@MainActor
-@Suite("Altitude window overlay interaction")
-struct AltitudeWindowOverlayInteractionTests {
-    @Test("the flipped container only captures the full menu pane")
-    func measuredHitRegion() {
-        let container = PassthroughWindowOverlayContainerView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 800))
-        container.interactiveRect = CGRect(x: 532, y: 540, width: 468, height: 200)
-
-        #expect(container.isFlipped)
-        #expect(container.hitTest(CGPoint(x: 700, y: 600)) === container)
-        #expect(container.hitTest(CGPoint(x: 700, y: 100)) == nil)
-    }
-
-    @Test("the altitude container is promoted above terminal portal hosts")
-    func overlayPromotesAbovePortalHost() throws {
-        let parent = NSView(frame: CGRect(x: 0, y: 0, width: 1_000, height: 800))
-        let reference = NSView(frame: parent.bounds)
-        let overlay = PassthroughWindowOverlayContainerView(frame: parent.bounds)
-        let portal = WindowTerminalHostView(frame: parent.bounds)
-        parent.addSubview(reference)
-        parent.addSubview(overlay, positioned: .above, relativeTo: reference)
-        parent.addSubview(portal, positioned: .above, relativeTo: reference)
-
-        WindowTmuxWorkspacePaneOverlayController.promoteAbovePortalHosts(containerView: overlay, in: parent)
-
-        let overlayIndex = try #require(parent.subviews.firstIndex(of: overlay))
-        let portalIndex = try #require(parent.subviews.firstIndex(of: portal))
-        #expect(overlayIndex > portalIndex)
-    }
-
-    @Test("authoritative menu state survives a temporarily missing target rect")
-    func authoritativePresentationFlag() {
-        let state = TmuxWorkspacePaneOverlayRenderState(
-            workspaceId: UUID(),
-            unreadRects: [],
-            flashRect: nil,
-            flashToken: 0,
-            flashReason: nil,
-            altitudeMenu: nil,
-            altitudeTargetRect: nil,
-            altitudeMenuIsPresented: true
-        )
-        #expect(state.altitudeMenuIsPresented)
-        #expect(state.altitudeMenu == nil)
+    @Test("command zero toggles back to the previous surface when the TUI is already focused")
+    func toggleDecision() {
+        let tui = UUID()
+        let previous = UUID()
+        #expect(AltitudeTUIHostPresentation.toggleDecision(
+            focusedPanelID: tui, tuiPanelID: tui, returnPanelID: previous
+        ) == .returnTo(previous))
+        #expect(AltitudeTUIHostPresentation.toggleDecision(
+            focusedPanelID: previous, tuiPanelID: tui, returnPanelID: previous
+        ) == .focusTUI)
+        #expect(AltitudeTUIHostPresentation.toggleDecision(
+            focusedPanelID: previous, tuiPanelID: nil, returnPanelID: nil
+        ) == .createTUI)
     }
 }
