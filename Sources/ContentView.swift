@@ -5659,9 +5659,16 @@ struct ContentView: View {
                     (configuration.leadSurfaceId, "1A"),
                     (configuration.understudySurfaceId, "1B"),
                 ] {
-                    guard let panelId,
-                          workspace.panels[panelId] != nil,
-                          let checkpointID = workspace.surfaceResumeBinding(panelId: panelId)?.checkpointId else { continue }
+                    guard let panelId, workspace.panels[panelId] != nil else { continue }
+                    // Prefer the office-attach resume binding; mosh surfaces
+                    // have none (the parser rightly refuses mosh commands), so
+                    // fall back to the tab title stripped of seat/transport
+                    // prefixes — for attached seats the title IS the tmux
+                    // session name, which the TUI matches.
+                    let title = workspace.panelTitles[panelId] ?? ""
+                    let fallback = AltitudeSeatTitle.baseTitle(title).replacingOccurrences(of: "[mosh] ", with: "")
+                    guard let checkpointID = workspace.surfaceResumeBinding(panelId: panelId)?.checkpointId
+                        ?? (fallback.isEmpty ? nil : fallback) else { continue }
                     priorities[checkpointID] = priority
                 }
             }
