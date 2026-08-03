@@ -5481,10 +5481,12 @@ struct ContentView: View {
                 needsYouEntries: []
             )
             : []
-        if altitudeEnabled, CommandPaletteFuzzyMatcher.preparedQuery(matchingQuery).isEmpty {
-            return altitudeEntries
-        }
-
+        // NOTE: never early-return a query-dependent corpus here. The search
+        // corpus is cached behind a fingerprint that does not include the
+        // query, so a corpus built at empty query (priority entries only)
+        // survives into typed queries and NOTHING matches. The full
+        // workspace+surface corpus is always appended; the altitude priority
+        // entries simply rank first, which is the ruled spatial view.
         var entries = altitudeEntries
         let estimatedCount = windowContexts.reduce(0) { partial, context in
             let workspaceCount = context.tabManager.tabs.count
