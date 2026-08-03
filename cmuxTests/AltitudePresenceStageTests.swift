@@ -575,9 +575,11 @@ struct AltitudeTUIHostPresentationTests {
         // Self-deletes so a quit-restore replay of a stale path fails cleanly.
         #expect(body.contains("rm -f -- \"$0\""))
         // Execs bun: when the TUI exits the PANE PROCESS dies, letting cmd-0
-        // detect processExited and recreate. No interactive-shell fallback.
+        // detect processExited and recreate. Nothing may FOLLOW the exec —
+        // an interactive-shell fallback (the Dock wrapper's tail) would keep
+        // the pane alive and read as a live menu forever.
         #expect(body.contains("exec env ALTITUDE_RETURN_TARGET_FILE="))
-        #expect(!body.contains("-l"))
+        #expect(body.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("run src/index.ts"))
         let attributes = try FileManager.default.attributesOfItem(atPath: path)
         #expect((attributes[.posixPermissions] as? Int) == 0o700)
     }
