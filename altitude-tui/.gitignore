@@ -1,0 +1,4 @@
+node_modules/
+evidence/phase0-harness/
+evidence/*.log
+evidence/ghostty-phase0.conf
