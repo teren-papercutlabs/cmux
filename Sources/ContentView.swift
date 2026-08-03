@@ -5752,17 +5752,15 @@ struct ContentView: View {
         let priorityJSON = (try? JSONSerialization.data(withJSONObject: priorityPayload))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         // Ghostty execs initialCommand directly, NOT through a shell — a
-        // compound "cd … && …" string dies instantly (pane flickers closed).
-        // Route it through the same self-executing script wrapper the Dock
-        // uses for shell-semantics startup commands.
-        let launchScript = DockSplitStore.shellStartupScript(
-            command: AltitudeTUIHostPresentation.launchCommand(
-                bunPath: bunPath,
-                tuiDirectory: tuiDirectory,
-                returnTargetPath: returnTargetPath
-            ),
-            workingDirectory: tuiDirectory
-        )
+        // compound "cd … && …" string dies instantly. The dedicated script
+        // wrapper also lets the pane DIE when the TUI exits (the Dock wrapper
+        // falls back to an interactive shell, which reads as a live menu and
+        // blocks recreation forever).
+        guard let launchScript = AltitudeTUIHostPresentation.writeLaunchScript(
+            bunPath: bunPath,
+            tuiDirectory: tuiDirectory,
+            returnTargetPath: returnTargetPath
+        ) else { return }
         guard let panel = workspace.newTerminalSurface(
             inPane: paneIDs[paneIndex],
             focus: true,

@@ -166,6 +166,39 @@ enum AltitudeTUIHostPresentation {
         return "cd \(directory) && { [ -d node_modules ] || \(bun) install --frozen-lockfile; } && exec env ALTITUDE_RETURN_TARGET_FILE=\(returnPath) \(bun) run src/index.ts"
     }
 
+    /// Ghostty execs a surface's initialCommand directly (no shell), so the
+    /// compound launch command is written to a self-deleting script and the
+    /// script path is the command. Unlike the Dock's shellStartupScript, this
+    /// deliberately does NOT fall back to an interactive shell when the TUI
+    /// exits: the pane must DIE on exit so the cmd-0 host detects processExited
+    /// and recreates the menu — a surviving shell reads as a live menu forever.
+    static func writeLaunchScript(
+        bunPath: String,
+        tuiDirectory: String,
+        returnTargetPath: String,
+        fileManager: FileManager = .default
+    ) -> String? {
+        let command = launchCommand(
+            bunPath: bunPath,
+            tuiDirectory: tuiDirectory,
+            returnTargetPath: returnTargetPath
+        )
+        let scriptURL = fileManager.temporaryDirectory
+            .appendingPathComponent("cmux-altitude-tui-\(UUID().uuidString.lowercased()).sh")
+        let body = """
+        #!/bin/sh
+        rm -f -- "$0" 2>/dev/null || true
+        \(command)
+        """
+        do {
+            try body.write(to: scriptURL, atomically: true, encoding: .utf8)
+            try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
+            return scriptURL.path
+        } catch {
+            return nil
+        }
+    }
+
     /// Resolve the altitude-tui checkout at RUNTIME. `#filePath` bakes the
     /// build machine's worktree path into the binary — a path that does not
     /// exist on the machine the app is installed on — so it is only the

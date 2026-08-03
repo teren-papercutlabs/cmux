@@ -561,6 +561,27 @@ struct AltitudeTUIHostPresentationTests {
         #expect(fallback == "/build-machine/worktree/altitude-tui")
     }
 
+
+    @Test("the launch script self-deletes and leaves no shell behind the TUI")
+    func launchScriptShape() throws {
+        let path = try #require(AltitudeTUIHostPresentation.writeLaunchScript(
+            bunPath: "/Users/test/.bun/bin/bun",
+            tuiDirectory: "/Users/test/deploy/altitude-tui",
+            returnTargetPath: "/tmp/return.json"
+        ))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let body = try String(contentsOfFile: path, encoding: .utf8)
+        #expect(body.hasPrefix("#!/bin/sh"))
+        // Self-deletes so a quit-restore replay of a stale path fails cleanly.
+        #expect(body.contains("rm -f -- \"$0\""))
+        // Execs bun: when the TUI exits the PANE PROCESS dies, letting cmd-0
+        // detect processExited and recreate. No interactive-shell fallback.
+        #expect(body.contains("exec env ALTITUDE_RETURN_TARGET_FILE="))
+        #expect(!body.contains("-l"))
+        let attributes = try FileManager.default.attributesOfItem(atPath: path)
+        #expect((attributes[.posixPermissions] as? Int) == 0o700)
+    }
+
     @Test("command zero toggles back to the previous surface when the TUI is already focused")
     func toggleDecision() {
         let tui = UUID()
