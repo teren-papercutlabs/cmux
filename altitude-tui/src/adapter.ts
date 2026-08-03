@@ -64,7 +64,10 @@ class OpenTUIAdapter implements MenuAdapter {
   beginFrame(): void { this.cells = []; }
 
   drawRow(row: number, text: string, style: DrawStyle = {}): void {
-    this.cells.push({ row, column: 0, text: text.slice(0, this.width), style });
+    // Full-bleed: pad every row to the surface width so the style background
+    // covers the whole line — otherwise the terminal's own (translucent)
+    // background bleeds through around each text run.
+    this.cells.push({ row, column: 0, text: text.padEnd(this.width).slice(0, this.width), style });
   }
 
   drawCell(row: number, column: number, text: string, style: DrawStyle = {}): void {

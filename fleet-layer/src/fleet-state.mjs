@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { parseJsonStdout, run } from './command.mjs';
 import { SESSION_SQL } from './sources.mjs';
 
@@ -34,10 +37,37 @@ export function projectFleetState(raw) {
   };
 }
 
+/**
+ * Resolve how to reach the marshal CLI. The TUI can run on a machine that has
+ * no local marshal (teren's MBA): a per-machine config or env override names a
+ * command prefix (e.g. ssh to the Studio) instead of the bare binary.
+ * Precedence: ALTITUDE_MARSHAL_CMD env (space-split) -> marshalCmd array in
+ * ~/.config/altitude/fleet.json -> local "marshal".
+ */
+export function marshalCommand(env = process.env, readConfig = defaultReadFleetConfig) {
+  const fromEnv = env.ALTITUDE_MARSHAL_CMD;
+  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv.trim().split(/\s+/);
+  const config = readConfig();
+  if (config && Array.isArray(config.marshalCmd) && config.marshalCmd.length > 0
+      && config.marshalCmd.every((part) => typeof part === 'string' && part.length > 0)) {
+    return [...config.marshalCmd];
+  }
+  return ['marshal'];
+}
+
+function defaultReadFleetConfig() {
+  try {
+    return JSON.parse(readFileSync(join(homedir(), '.config', 'altitude', 'fleet.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 export async function getFleetState(options = {}) {
   if (options.sources) return projectFleetState(await options.sources.collect());
   const invoke = options.run ?? run;
-  const result = await invoke('marshal', ['db', 'query', '--sql', SESSION_SQL], {
+  const [marshalBin, ...marshalPrefix] = options.marshalCommand ?? marshalCommand();
+  const result = await invoke(marshalBin, [...marshalPrefix, 'db', 'query', '--sql', SESSION_SQL], {
     timeoutMs: options.timeoutMs ?? 30_000,
   });
   const parsed = parseJsonStdout(result, 'marshal db query');

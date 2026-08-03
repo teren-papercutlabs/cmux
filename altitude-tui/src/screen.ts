@@ -34,7 +34,9 @@ function titleFor(row: MenuRow): string {
 
 function priorityLine(state: MenuState, priority: "1A" | "1B", id: string | undefined): string {
   if (!id) return `${priority}  ${t("unassigned")}`;
-  const row = state.rows.find((item) => item.sessionId === id);
+  // The priority payload carries resume checkpoint ids, which are tmux session
+  // names — the fleet's sessionId is a UUID, so match either.
+  const row = state.rows.find((item) => item.sessionId === id || item.tmuxSession === id);
   if (!row) return `${priority}  ${t("notLive")}`;
   const stateLabel = row.lifecycleState === "working" ? t("working") : row.lifecycleState;
   const needLabel = row.needsYou ? t("needsYouShort") : t("noNeed");
@@ -184,11 +186,17 @@ export function drawMenu(
   const selectedIndex = body.findIndex((entry) => entry.sessionID === selectedID);
   const centeredStart = selectedIndex < 0 ? 0 : selectedIndex - Math.floor(bodyHeight / 2);
   const viewportStart = Math.max(0, Math.min(centeredStart, Math.max(0, body.length - bodyHeight)));
-  body.slice(viewportStart, viewportStart + bodyHeight).forEach((entry, index) => {
+  const visibleBody = body.slice(viewportStart, viewportStart + bodyHeight);
+  visibleBody.forEach((entry, index) => {
     const screenRow = line + index;
     entry.draw(screenRow);
     if (entry.sessionID) rowByScreenLine.set(screenRow, entry.sessionID);
   });
+  // Paint the unused band below the body so the canvas is full-bleed instead
+  // of the terminal background showing through.
+  for (let screenRow = line + visibleBody.length; screenRow < bodyEnd; screenRow += 1) {
+    adapter.drawRow(screenRow, "", { bg: COLOR.canvas });
+  }
 
   if (options.error && errorLine !== null && errorLine < footerLine) {
     adapter.drawRow(errorLine, clip(options.error, width), { fg: COLOR.red, bg: COLOR.canvas });

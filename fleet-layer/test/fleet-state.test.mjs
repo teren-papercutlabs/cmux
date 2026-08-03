@@ -28,3 +28,17 @@ test('recognizes principal mains from typed session metadata rather than their d
   });
   assert.equal(state.sessions[0].isMain, true);
 });
+
+test('marshalCommand: env override wins, then config marshalCmd, then local marshal', async () => {
+  const { marshalCommand } = await import('../src/fleet-state.mjs');
+  assert.deepEqual(
+    marshalCommand({ ALTITUDE_MARSHAL_CMD: 'ssh -o BatchMode=yes pcloffice@studio marshal' }, () => null),
+    ['ssh', '-o', 'BatchMode=yes', 'pcloffice@studio', 'marshal'],
+  );
+  assert.deepEqual(
+    marshalCommand({}, () => ({ marshalCmd: ['ssh', 'studio', 'marshal'] })),
+    ['ssh', 'studio', 'marshal'],
+  );
+  assert.deepEqual(marshalCommand({}, () => null), ['marshal']);
+  assert.deepEqual(marshalCommand({}, () => ({ marshalCmd: [] })), ['marshal']);
+});
