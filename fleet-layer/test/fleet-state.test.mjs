@@ -56,3 +56,27 @@ test('buildMarshalInvocation quotes the remote command for ssh, passes locals th
   assert.ok(remoteCommand.startsWith("'marshal' 'db' 'query' '--sql' '"));
   assert.ok(remoteCommand.includes("'\\''a)b'\\''"));
 });
+
+test('getFleetState keeps only ATTACHED tmux sessions and fails open when tmux is unreachable', async () => {
+  const { getFleetState } = await import('../src/fleet-state.mjs');
+  const rows = [
+    { session_id: 'a', tmux_session: 'attached-one', state: 'working' },
+    { session_id: 'b', tmux_session: 'detached-one', state: 'working' },
+    { session_id: 'c', tmux_session: null, state: 'working' },
+  ];
+  const runner = (tmuxStdout) => async (bin, args) => {
+    const joined = [bin, ...args].join(' ');
+    if (joined.includes('list-sessions')) {
+      if (tmuxStdout === null) throw new Error('tmux down');
+      return { stdout: tmuxStdout, stderr: '', code: 0 };
+    }
+    return { stdout: JSON.stringify({ data: rows }), stderr: '', code: 0 };
+  };
+
+  const filtered = await getFleetState({ run: runner('attached-one|1\ndetached-one|0\n'), marshalCommand: ['marshal'] });
+  assert.deepEqual(filtered.sessions.map((s) => s.tmuxSession), ['attached-one']);
+
+  const failedOpen = await getFleetState({ run: runner(null), marshalCommand: ['marshal'] });
+  assert.equal(failedOpen.sessions.length, 3);
+  assert.ok(failedOpen.warnings.some((w) => w.includes('attach filter unavailable')));
+});

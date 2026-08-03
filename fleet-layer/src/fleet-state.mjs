@@ -70,17 +70,45 @@ function defaultReadFleetConfig() {
  * re-parsed there ("zsh: parse error").
  */
 export function buildMarshalInvocation(commandParts, marshalArgs) {
+  return buildRemoteInvocation(commandParts, commandParts[commandParts.length - 1], marshalArgs);
+}
+
+/** Same host resolution as the marshal command, but for any binary on that
+ *  host (e.g. tmux, which holds live attach state the DB does not have). */
+export function buildRemoteInvocation(commandParts, bin, args) {
   if (commandParts[0] === 'ssh' && commandParts.length >= 3) {
-    const remoteBin = commandParts[commandParts.length - 1];
     const sshOptionsAndTarget = commandParts.slice(1, -1);
     const quote = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
     return {
       bin: 'ssh',
-      args: [...sshOptionsAndTarget, [remoteBin, ...marshalArgs].map(quote).join(' ')],
+      args: [...sshOptionsAndTarget, [bin, ...args].map(quote).join(' ')],
     };
   }
-  const [bin, ...prefix] = commandParts;
-  return { bin, args: [...prefix, ...marshalArgs] };
+  return { bin, args };
+}
+
+/** The set of tmux session names currently ATTACHED on the fleet host, or
+ *  null when the query fails (callers fail OPEN to unfiltered rather than
+ *  rendering an empty menu off a transient error). */
+async function attachedTmuxSessions(invoke, commandParts, timeoutMs) {
+  try {
+    const { bin, args } = buildRemoteInvocation(
+      commandParts,
+      'tmux',
+      ['list-sessions', '-F', '#{session_name}|#{session_attached}'],
+    );
+    const result = await invoke(bin, args, { timeoutMs });
+    const attached = new Set();
+    for (const line of String(result.stdout ?? '').split('\n')) {
+      const separator = line.lastIndexOf('|');
+      if (separator > 0 && line.slice(separator + 1).trim() !== '0') {
+        attached.add(line.slice(0, separator));
+      }
+    }
+    return attached;
+  } catch {
+    return null;
+  }
 }
 
 export async function getFleetState(options = {}) {
@@ -94,8 +122,23 @@ export async function getFleetState(options = {}) {
     timeoutMs: options.timeoutMs ?? 30_000,
   });
   const parsed = parseJsonStdout(result, 'marshal db query');
-  return projectFleetState({
+  const state = projectFleetState({
     collectedAt: new Date().toISOString(),
     sessions: parsed && Object.hasOwn(parsed, 'data') ? parsed.data : parsed,
   });
+  // teren-ruled 2026-08-03: the menu shows only sessions whose tmux session is
+  // currently ATTACHED (his live surfaces). Attach state lives in the tmux
+  // server, not the DB. Fail open on a tmux query error.
+  const attached = await attachedTmuxSessions(
+    invoke,
+    options.marshalCommand ?? marshalCommand(),
+    options.timeoutMs ?? 30_000,
+  );
+  if (attached === null) {
+    return { ...state, warnings: [...state.warnings, 'attach filter unavailable: showing all tmux sessions'] };
+  }
+  return {
+    ...state,
+    sessions: state.sessions.filter((session) => session.tmuxSession && attached.has(session.tmuxSession)),
+  };
 }
