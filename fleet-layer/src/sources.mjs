@@ -45,6 +45,9 @@ WITH open_lifecycle AS (
     LIMIT 1
   ) latest_token ON true
   WHERE l.state <> 'exited'
+    -- teren-ruled 2026-08-03: the menu shows only tmux-attached sessions;
+    -- headless workers stay out of the fleet menu.
+    AND s.tmux_session IS NOT NULL
 )
 SELECT * FROM open_lifecycle
 ORDER BY owner_agent NULLS LAST, state_changed_at DESC`;
