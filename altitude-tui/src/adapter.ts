@@ -187,6 +187,40 @@ export function surfaceMatches(surface: Record<string, unknown>, query: string, 
   });
 }
 
+async function findSurface(query: string): Promise<{ workspaceID: string; panelID: string } | null> {
+  const tree = JSON.parse(await readControl(["--json", "--id-format", "uuids", "tree", "--all"])) as {
+    windows?: Array<{ workspaces?: Array<{ id?: string; panes?: Array<{ surfaces?: Array<Record<string, unknown>> }> }> }>;
+  };
+  for (const exact of [true, false]) {
+    for (const window of tree.windows ?? []) {
+      for (const workspace of window.workspaces ?? []) {
+        for (const pane of workspace.panes ?? []) {
+          for (const surface of pane.surfaces ?? []) {
+            const panelID = typeof surface.id === "string" ? surface.id : null;
+            if (panelID && workspace.id && surfaceMatches(surface, query, exact)) {
+              return { workspaceID: workspace.id, panelID };
+            }
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** Anoint the session's surface into a seat (decision 27: membership IS the
+ *  seat; the app moves it into Priority and displaces the old holder). */
+export async function anointSession(query: string, role: "1A" | "1B"): Promise<void> {
+  const found = await findSurface(query);
+  if (!found) throw new Error(`${t("noSurfaceFor")} ${query}`);
+  await runControl([
+    "tab-action",
+    "--action", role === "1A" ? "anoint-1a" : "anoint-1b",
+    "--surface", found.panelID,
+    "--workspace", found.workspaceID,
+  ]);
+}
+
 /** Uses cmux's existing control-socket CLI; this program creates no IPC service. */
 export async function jumpToSession(query: string): Promise<void> {
   const tree = JSON.parse(await readControl(["--json", "--id-format", "uuids", "tree", "--all"])) as {

@@ -37,4 +37,5 @@ public struct SurfaceKind: RawRepresentable, Hashable, Sendable {
     public static let todo = SurfaceKind(rawValue: "todo")
     /// A transient Cloud VM loading pane.
     public static let cloudVMLoading = SurfaceKind(rawValue: "cloudVMLoading")
+    public static let altitudeSeatPlaceholder = SurfaceKind(rawValue: "altitudeSeatPlaceholder")
 }

@@ -1,4 +1,4 @@
-import { createAdapter, jumpToSession, returnToPreviousSurface } from "./adapter";
+import { anointSession, createAdapter, jumpToSession, returnToPreviousSurface } from "./adapter";
 import {
   advanceSelection,
   deriveMenuState,
@@ -75,6 +75,20 @@ async function jump(): Promise<void> {
   }
 }
 
+async function anoint(role: "1A" | "1B"): Promise<void> {
+  if (selectedID === MAINS_TOGGLE_ID) return;
+  const row = state.rows.find((item) => item.sessionId === selectedID);
+  if (!row) return;
+  try {
+    await anointSession(row.tmuxSession ?? row.displayName ?? row.sessionId, role);
+    error = null;
+    arrival = `${row.displayName} → ${role}`;
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : String(caught);
+  }
+  redraw();
+}
+
 function move(delta: number): void {
   selectedID = advanceSelection(selectableIds(state, mainsExpanded), selectedID, delta);
   redraw();
@@ -92,6 +106,7 @@ adapter.onKey((key) => {
   else if (key.name === "up" || key.name === "k") move(-1);
   else if (key.name === "down" || key.name === "j") move(1);
   else if (key.name === "m" && !key.ctrl) toggleMains();
+  else if ((key.name === "1" || key.name === "2") && !key.ctrl) void anoint(key.name === "1" ? "1A" : "1B");
   else if (key.name === "return" || key.name === "enter") void jump();
   else if (key.name === "q" && key.ctrl) shutdown();
 });

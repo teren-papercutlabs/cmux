@@ -166,6 +166,11 @@ struct PanelContentView: View {
                 CloudVMLoadingPanelView(panel: loadingPanel)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        case .altitudeSeatPlaceholder:
+            if let seatPanel = panel as? AltitudeSeatPlaceholderPanel {
+                AltitudeSeatPlaceholderView(panel: seatPanel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 
@@ -183,7 +188,7 @@ struct PanelContentView: View {
     private var shouldInstallPaneDropTarget: Bool {
         guard isVisibleInUI else { return false }
         switch panel.panelType {
-        case .markdown, .filePreview, .rightSidebarTool, .customSidebar, .agentSession, .project, .extensionBrowser, .workspaceTodo, .cloudVMLoading:
+        case .markdown, .filePreview, .rightSidebarTool, .customSidebar, .agentSession, .project, .extensionBrowser, .workspaceTodo, .cloudVMLoading, .altitudeSeatPlaceholder:
             return true
         case .terminal, .browser:
             return false
@@ -379,4 +384,39 @@ struct PanelHeaderIconGlyph: View {
             .frame(width: 20, height: 20, alignment: .center)
             .contentShape(Rectangle())
     }
+}
+
+
+/// Empty-seat furniture (decision 27 phase 2): quiet canvas, the seat label,
+/// and the anoint affordance. Clicking opens the Altitude menu, where
+/// selecting a session and pressing 1/2 anoints it into a seat.
+private struct AltitudeSeatPlaceholderView: View {
+    let panel: AltitudeSeatPlaceholderPanel
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text(panel.role)
+                .font(.system(size: 34, weight: .bold, design: .monospaced))
+                .foregroundStyle(.tertiary)
+            Text(String(localized: "altitude.seat.placeholder.unassigned", defaultValue: "unassigned"))
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Text(String(
+                localized: "altitude.seat.placeholder.hint",
+                defaultValue: "⌘0 → pick a session → press \(panel.role == "1A" ? "1" : "2")"
+            ))
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: NSColor(srgbRed: 0.047, green: 0.047, blue: 0.047, alpha: 1)))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            NotificationCenter.default.post(name: .altitudeSeatPlaceholderActivated, object: panel.id)
+        }
+    }
+}
+
+extension Notification.Name {
+    static let altitudeSeatPlaceholderActivated = Notification.Name("altitudeSeatPlaceholderActivated")
 }

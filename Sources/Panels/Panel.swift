@@ -15,6 +15,7 @@ public enum PanelType: String, Codable, Sendable {
     case extensionBrowser
     case workspaceTodo
     case cloudVMLoading
+    case altitudeSeatPlaceholder
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -486,4 +487,32 @@ final class CloudVMLoadingPanel: Panel {
         }
         return String(collapsed.joined(separator: "\n").prefix(600))
     }
+}
+
+
+/// Decision 27 phase 2: an EMPTY seat in Priority keeps its slot with this
+/// placeholder — the layout never collapses, and the empty seat is a visible,
+/// actionable state. The placeholder is furniture: never listed in the menu,
+/// cmd-K, or Flex; it is created/removed only by the mandate controller.
+@MainActor
+final class AltitudeSeatPlaceholderPanel: Panel {
+    let id: UUID
+    let workspaceId: UUID
+    let stableSurfaceIdentity = PanelStableSurfaceIdentity()
+    let panelType: PanelType = .altitudeSeatPlaceholder
+    let role: String // "1A" | "1B"
+
+    var displayTitle: String { "\(role) — unassigned" }
+    var displayIcon: String? { "chair.lounge.fill" }
+
+    init(id: UUID = UUID(), workspaceId: UUID, role: String) {
+        self.id = id
+        self.workspaceId = workspaceId
+        self.role = role
+    }
+
+    func close() {}
+    func focus() {}
+    func unfocus() {}
+    func triggerFlash(reason: WorkspaceAttentionFlashReason) {}
 }

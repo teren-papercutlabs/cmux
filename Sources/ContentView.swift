@@ -2959,6 +2959,15 @@ struct ContentView: View {
             refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
 
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(
+            for: .altitudeSeatPlaceholderActivated
+        )) { _ in
+            // An empty-seat placeholder was clicked: the menu IS the anoint
+            // affordance (select a session, press 1/2).
+            guard let workspace = tabManager.selectedWorkspace else { return }
+            toggleAltitudeTUI(in: workspace)
+        })
+
         view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: NSText.didBeginEditingNotification)) { notification in
             guard commandPalettePendingTextSelectionBehavior != nil else { return }
             guard let editor = notification.object as? NSTextView,
@@ -5814,11 +5823,14 @@ struct ContentView: View {
             altitudeTUIHostState = nil
         }
 
-        // Decision 27: the menu never lives in Priority (it would be bounced
-        // as a non-seat). Invoked from Priority, it hosts in Flex instead.
+        // Decision 27 setting: the menu opens in FLEX (default) or in the
+        // CURRENT pane (AltitudeMenuFollowsFocus=true). Either way it never
+        // lives in Priority — it would be bounced as a non-seat.
+        let menuFollowsFocus = UserDefaults.standard.bool(forKey: AltitudeTUIHostPresentation.menuFollowsFocusKey)
         let hostWorkspace: Workspace = {
-            guard workspace.id == AppDelegate.shared?.altitudeMandatedWorkspaceID(.priority),
-                  let flexID = AppDelegate.shared?.altitudeMandatedWorkspaceID(.flex),
+            let inPriority = workspace.id == AppDelegate.shared?.altitudeMandatedWorkspaceID(.priority)
+            guard !menuFollowsFocus || inPriority else { return workspace }
+            guard let flexID = AppDelegate.shared?.altitudeMandatedWorkspaceID(.flex),
                   let flexManager = AppDelegate.shared?.tabManagerFor(tabId: flexID),
                   let flex = flexManager.tabs.first(where: { $0.id == flexID }) else { return workspace }
             return flex
@@ -5906,6 +5918,12 @@ struct ContentView: View {
         // before surfacing an error — the anointed hotkeys must not go dead.
         if let item = altitudeCoordinator.snapshot.items.first(where: { $0.priority == priority }) {
             altitudeGo(item)
+            return
+        }
+        // Empty seat: the keys are never dead — they open the menu, which is
+        // the anoint affordance (pick a session, press 1/2). Decision 27 ph2.
+        if let workspace = tabManager.selectedWorkspace {
+            toggleAltitudeTUI(in: workspace)
             return
         }
         altitudeNavigationError = String(localized: "altitude.navigation.noTarget", defaultValue: "That Altitude target is no longer available")
@@ -6052,13 +6070,16 @@ struct ContentView: View {
     }
 
     private func commandPaletteOrderedSwitcherPanels(for workspace: Workspace) -> [UUID] {
-        let orderedPanelIds = workspace.sidebarOrderedPanelIds()
+        // Seat placeholders are furniture, never switcher destinations.
+        let orderedPanelIds = workspace.sidebarOrderedPanelIds().filter {
+            !(workspace.panels[$0] is AltitudeSeatPlaceholderPanel)
+        }
         guard orderedPanelIds.count < workspace.panels.count else { return orderedPanelIds }
 
         var panelIds = orderedPanelIds
         var seen = Set(orderedPanelIds)
         for panelId in workspace.panels.keys.sorted(by: { $0.uuidString < $1.uuidString })
-        where seen.insert(panelId).inserted {
+        where seen.insert(panelId).inserted && !(workspace.panels[panelId] is AltitudeSeatPlaceholderPanel) {
             panelIds.append(panelId)
         }
         return panelIds

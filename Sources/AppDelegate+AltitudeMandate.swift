@@ -67,6 +67,7 @@ extension AppDelegate {
             }
         }
         altitudeEnforcePriorityMembership()
+        altitudeEnsureSeatSlots()
     }
 
     /// Restore completion is not observable (plain flags, async multi-window
@@ -91,7 +92,9 @@ extension AppDelegate {
               let priorityID = altitudeMandatedWorkspaceID(.priority),
               let priority = altitudeWorkspace(withID: priorityID) else { return }
         let configuration = PcLPrioritySwitcherConfiguration.load()
-        let interlopers = priority.workspace.panels.keys.filter { panelID in
+        let interlopers = priority.workspace.panels.filter { _, panel in
+            !(panel is AltitudeSeatPlaceholderPanel)
+        }.keys.filter { panelID in
             AltitudeWorkspaceMandate.membership(
                 surfaceID: panelID,
                 destinationWorkspaceID: priorityID,
@@ -172,6 +175,7 @@ extension AppDelegate {
         priority.workspace.setPanelPinned(panelId: panelID, pinned: true)
 
         altitudeEnforcePriorityMembership()
+        altitudeEnsureSeatSlots()
         priority.workspace.bonsplitController.invalidateHostProvidedChrome()
         priority.workspace.objectWillChange.send()
         NotificationCenter.default.post(name: .altitudeSeatConfigurationDidChange, object: priority.workspace)
@@ -190,9 +194,85 @@ extension AppDelegate {
             if located.workspaceId == altitudeMandatedWorkspaceID(.priority) {
                 _ = altitudeMoveSurfaceToFlex(panelID: panelID)
             }
+            altitudeEnsureSeatSlots()
             workspace.bonsplitController.invalidateHostProvidedChrome()
             workspace.objectWillChange.send()
             NotificationCenter.default.post(name: .altitudeSeatConfigurationDidChange, object: workspace)
+        }
+    }
+}
+
+// MARK: - Empty-seat placeholders (decision 27 phase 2)
+
+extension Workspace {
+    /// Create a placeholder tab holding an empty seat's slot. Mandate-owned:
+    /// nothing else creates or keeps these.
+    @discardableResult
+    func addAltitudeSeatPlaceholder(role: String, inPane paneID: PaneID?) -> UUID? {
+        let panel = AltitudeSeatPlaceholderPanel(workspaceId: id, role: role)
+        panels[panel.id] = panel
+        panelTitles[panel.id] = panel.displayTitle
+        let targetPane = paneID ?? bonsplitController.allPaneIds.first
+        guard let targetPane,
+              let tabId = bonsplitController.createTab(
+                  title: panel.displayTitle,
+                  icon: "chair.lounge.fill",
+                  kind: SurfaceKind.altitudeSeatPlaceholder.rawValue,
+                  isPinned: true,
+                  inPane: targetPane
+              ) else {
+            panels.removeValue(forKey: panel.id)
+            panelTitles.removeValue(forKey: panel.id)
+            return nil
+        }
+        bindSurface(tabId, toPanelId: panel.id)
+        return panel.id
+    }
+
+    var altitudeSeatPlaceholders: [(panelID: UUID, role: String)] {
+        panels.compactMap { key, value in
+            guard let placeholder = value as? AltitudeSeatPlaceholderPanel else { return nil }
+            return (key, placeholder.role)
+        }
+    }
+}
+
+extension AppDelegate {
+    /// Priority always renders both slots: each role shows its seat surface,
+    /// or a placeholder when empty. Idempotent; runs after ensure/anoint/clear.
+    func altitudeEnsureSeatSlots() {
+        guard AltitudeConfiguration.isEnabled(),
+              let priorityID = altitudeMandatedWorkspaceID(.priority),
+              let priority = altitudeWorkspace(withID: priorityID) else { return }
+        let configuration = PcLPrioritySwitcherConfiguration.load()
+        let workspace = priority.workspace
+        workspace.isApplyingAltitudeSeatMove = true
+        defer { workspace.isApplyingAltitudeSeatMove = false }
+
+        let seatPresent: (UUID?) -> Bool = { id in
+            guard let id else { return false }
+            return workspace.panels[id] != nil
+        }
+        let roleFilled: [String: Bool] = [
+            "1A": seatPresent(configuration.leadSurfaceId),
+            "1B": seatPresent(configuration.understudySurfaceId),
+        ]
+
+        // Drop placeholders for roles that are filled (or duplicated).
+        var seenRoles = Set<String>()
+        for (panelID, role) in workspace.altitudeSeatPlaceholders {
+            if roleFilled[role] == true || seenRoles.contains(role) {
+                _ = workspace.closePanel(panelID, force: true)
+            } else {
+                seenRoles.insert(role)
+            }
+        }
+        // Create placeholders for empty roles, 1A into the first pane, 1B
+        // beside it (second pane when one exists).
+        let paneIDs = workspace.bonsplitController.allPaneIds
+        for (role, pane) in [("1A", paneIDs.first), ("1B", paneIDs.count > 1 ? paneIDs[1] : paneIDs.first)] {
+            guard roleFilled[role] == false, !seenRoles.contains(role) else { continue }
+            _ = workspace.addAltitudeSeatPlaceholder(role: role, inPane: pane)
         }
     }
 }

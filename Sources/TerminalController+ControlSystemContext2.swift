@@ -170,6 +170,14 @@ extension TerminalController {
             }
             return finish(.fullWidthTabMode(workspace.bonsplitController.isFullWidthTabMode(inPane: paneId)))
 
+        case "anoint_lead", "anoint_1a":
+            AppDelegate.shared?.altitudeAnoint(role: .lead, panelID: panelId)
+            return finish(.none)
+
+        case "anoint_understudy", "anoint_1b":
+            AppDelegate.shared?.altitudeAnoint(role: .understudy, panelID: panelId)
+            return finish(.none)
+
         case "move_to_new_workspace", "detach_to_workspace", "detach_to_new_workspace":
             // The move-to-new-workspace family stays app-side (it re-homes
             // surfaces across TabManagers); bridge its fully-shaped result.
