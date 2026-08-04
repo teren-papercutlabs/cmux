@@ -1071,7 +1071,7 @@ struct ContentView: View {
         guard let workspace = tabManager.selectedWorkspace else { return nil }
         let usesWorkspacePaneOverlay = TmuxOverlayExperimentSettings.target().usesWorkspacePaneOverlay
         let resolvedActivePaneBorderColorHex = WorkspaceTabColorSettings.normalizedHex(activePaneBorderColorHex)
-        let shouldShowActivePaneBorder = shouldShowActivePaneBorder(for: workspace, colorHex: resolvedActivePaneBorderColorHex)
+        let shouldShowActivePaneBorder = shouldShowActivePaneBorder(for: workspace, colorHex: resolvedActivePaneBorderColorHex, in: window)
         guard usesWorkspacePaneOverlay || shouldShowActivePaneBorder else { return nil }
 
         let layoutSnapshot = WorkspaceContentView.effectiveTmuxLayoutSnapshot(
@@ -1201,15 +1201,19 @@ struct ContentView: View {
         controller?.update(state: tmuxOverlayState)
     }
 
-    private func shouldShowActivePaneBorder(for workspace: Workspace, colorHex: String?) -> Bool {
-        colorHex != nil && workspace.layoutMode != .canvas && !fileExplorerState.rightSidebarOwnsInputFocus && workspace.bonsplitController.allPaneIds.count > 1
+    private func shouldShowActivePaneBorder(for workspace: Workspace, colorHex: String?, in window: NSWindow? = nil) -> Bool {
+        // Altitude: the blue border means THE focused pane, globally — exactly
+        // one across all windows, so an inactive window shows none
+        // (teren, 2026-08-04). Vanilla keeps the per-window memory behavior.
+        if AltitudeConfiguration.isEnabled(), let window, !window.isKeyWindow { return false }
+        return colorHex != nil && workspace.layoutMode != .canvas && !fileExplorerState.rightSidebarOwnsInputFocus && workspace.bonsplitController.allPaneIds.count > 1
     }
 
     private func shouldScheduleTmuxWorkspacePaneWindowOverlayGeometryRefresh(in window: NSWindow) -> Bool {
         if TmuxOverlayExperimentSettings.target().usesWorkspacePaneOverlay { return true }
         if WindowTmuxWorkspacePaneOverlayController.controller(for: window, createIfNeeded: false)?.hasRenderedState == true { return true }
         guard let workspace = tabManager.selectedWorkspace else { return false }
-        return shouldShowActivePaneBorder(for: workspace, colorHex: WorkspaceTabColorSettings.normalizedHex(activePaneBorderColorHex))
+        return shouldShowActivePaneBorder(for: workspace, colorHex: WorkspaceTabColorSettings.normalizedHex(activePaneBorderColorHex), in: window)
     }
 
     private func scheduleTmuxWorkspacePaneWindowOverlayGeometryRefresh(in window: NSWindow?) {
@@ -2938,6 +2942,16 @@ struct ContentView: View {
         )) { _ in
             attemptCommandPaletteFocusRestoreIfNeeded()
             attemptCommandPaletteTextSelectionIfNeeded()
+            // Global active-pane border: gaining key shows this window's border.
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
+        })
+
+        view = AnyView(view.onReceive(NotificationCenter.default.publisher(
+            for: NSWindow.didResignKeyNotification,
+            object: observedWindow
+        )) { _ in
+            // Global active-pane border: losing key hides this window's border.
+            refreshTmuxWorkspacePaneWindowOverlay(in: observedWindow)
         })
 
         view = AnyView(view.onReceive(NotificationCenter.default.publisher(for: NSText.didBeginEditingNotification)) { notification in
