@@ -160,6 +160,45 @@ struct AltitudeSeatPinningTests {
 }
 
 
+@Suite("Altitude mandated workspaces")
+struct AltitudeWorkspaceMandateTests {
+    @Test("resolution prefers the stored id, adopts by title, else creates")
+    func mandateResolution() {
+        let stored = UUID()
+        let titled = UUID()
+        let live: [(id: UUID, title: String)] = [(stored, "Whatever"), (titled, "priority ")]
+        #expect(AltitudeWorkspaceMandate.resolution(storedID: stored, workspaces: live, mandated: .priority) == .existing(stored))
+        // Dead stored id falls through to title adoption (case/space-insensitive).
+        #expect(AltitudeWorkspaceMandate.resolution(storedID: UUID(), workspaces: [(titled, " Priority")], mandated: .priority) == .adopt(titled))
+        #expect(AltitudeWorkspaceMandate.resolution(storedID: nil, workspaces: [], mandated: .flex) == .create)
+    }
+
+    @Test("mandated workspaces can never be closed and keep their names")
+    func mandateProtections() {
+        let priority = UUID()
+        let flex = UUID()
+        let other = UUID()
+        #expect(!AltitudeWorkspaceMandate.allowsClose(workspaceID: priority, priorityID: priority, flexID: flex))
+        #expect(!AltitudeWorkspaceMandate.allowsClose(workspaceID: flex, priorityID: priority, flexID: flex))
+        #expect(AltitudeWorkspaceMandate.allowsClose(workspaceID: other, priorityID: priority, flexID: flex))
+        #expect(!AltitudeWorkspaceMandate.allowsRename(workspaceID: priority, proposedTitle: "Stuff", priorityID: priority, flexID: flex))
+        #expect(AltitudeWorkspaceMandate.allowsRename(workspaceID: priority, proposedTitle: "priority", priorityID: priority, flexID: flex))
+        #expect(AltitudeWorkspaceMandate.allowsRename(workspaceID: other, proposedTitle: "Stuff", priorityID: priority, flexID: flex))
+    }
+
+    @Test("Priority admits only the seats; everything else bounces to Flex")
+    func membershipEnforcement() {
+        let priority = UUID()
+        let lead = UUID()
+        let understudy = UUID()
+        let interloper = UUID()
+        #expect(AltitudeWorkspaceMandate.membership(surfaceID: lead, destinationWorkspaceID: priority, priorityID: priority, leadSurfaceID: lead, understudySurfaceID: understudy) == .allow)
+        #expect(AltitudeWorkspaceMandate.membership(surfaceID: interloper, destinationWorkspaceID: priority, priorityID: priority, leadSurfaceID: lead, understudySurfaceID: understudy) == .bounceToFlex)
+        // Flex and ordinary workspaces admit anything.
+        #expect(AltitudeWorkspaceMandate.membership(surfaceID: interloper, destinationWorkspaceID: UUID(), priorityID: priority, leadSurfaceID: lead, understudySurfaceID: understudy) == .allow)
+    }
+}
+
 @Suite("Altitude command palette corpus")
 struct AltitudeCommandPaletteCorpusTests {
     @Test("an empty query shows Altitude priority and needs-you entries")

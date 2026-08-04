@@ -277,3 +277,86 @@ enum AltitudeOfficeAttachResumePolicy {
         return isAltitudeEnabled && restoreOfficeAttaches
     }
 }
+
+/// Decision 27: two MANDATED workspaces. "Priority" holds exactly the 1A/1B
+/// seats; "Flex" holds everything else. Both always exist and can never be
+/// closed or renamed. All membership/lifecycle DECISIONS live here as pure
+/// functions so they are testable without the app graph; ContentView/
+/// AppDelegate only execute the returned verdicts.
+enum AltitudeMandatedWorkspace: String, CaseIterable, Sendable {
+    case priority = "Priority"
+    case flex = "Flex"
+
+    var storedIDKey: String {
+        switch self {
+        case .priority: return "Altitude.priorityWorkspaceID.v1"
+        case .flex: return "Altitude.flexWorkspaceID.v1"
+        }
+    }
+}
+
+enum AltitudeWorkspaceMandate {
+    enum Resolution: Equatable {
+        /// The stored workspace id is live: use it.
+        case existing(UUID)
+        /// No stored id (or it is dead), but a workspace already carries the
+        /// mandated title: adopt it and store its id.
+        case adopt(UUID)
+        /// Nothing matches: create the workspace, then store its id.
+        case create
+    }
+
+    /// Resolve a mandated workspace against the live workspace list.
+    /// Adoption by title keeps an existing user layout (teren already has a
+    /// workspace literally named "Priority") instead of spawning a duplicate.
+    static func resolution(
+        storedID: UUID?,
+        workspaces: [(id: UUID, title: String)],
+        mandated: AltitudeMandatedWorkspace
+    ) -> Resolution {
+        if let storedID, workspaces.contains(where: { $0.id == storedID }) {
+            return .existing(storedID)
+        }
+        if let byTitle = workspaces.first(where: {
+            $0.title.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(mandated.rawValue) == .orderedSame
+        }) {
+            return .adopt(byTitle.id)
+        }
+        return .create
+    }
+
+    /// May this workspace be closed / merged away? Mandated workspaces: never.
+    static func allowsClose(workspaceID: UUID, priorityID: UUID?, flexID: UUID?) -> Bool {
+        workspaceID != priorityID && workspaceID != flexID
+    }
+
+    /// May this workspace be renamed to `proposedTitle`? Mandated workspaces
+    /// keep their names; everything else is free.
+    static func allowsRename(workspaceID: UUID, proposedTitle: String, priorityID: UUID?, flexID: UUID?) -> Bool {
+        if workspaceID == priorityID {
+            return proposedTitle.caseInsensitiveCompare(AltitudeMandatedWorkspace.priority.rawValue) == .orderedSame
+        }
+        if workspaceID == flexID {
+            return proposedTitle.caseInsensitiveCompare(AltitudeMandatedWorkspace.flex.rawValue) == .orderedSame
+        }
+        return true
+    }
+
+    enum MembershipVerdict: Equatable {
+        case allow
+        /// A non-seat surface may not live in Priority: bounce it to Flex.
+        case bounceToFlex
+    }
+
+    /// Priority holds exactly the seats (enforced, teren-ruled 10:34).
+    static func membership(
+        surfaceID: UUID,
+        destinationWorkspaceID: UUID,
+        priorityID: UUID?,
+        leadSurfaceID: UUID?,
+        understudySurfaceID: UUID?
+    ) -> MembershipVerdict {
+        guard destinationWorkspaceID == priorityID else { return .allow }
+        return (surfaceID == leadSurfaceID || surfaceID == understudySurfaceID) ? .allow : .bounceToFlex
+    }
+}
