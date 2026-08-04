@@ -6008,8 +6008,13 @@ struct ContentView: View {
     }
 
     private func commandPaletteWindowKeywords(windowLabel: String?) -> [String] {
-        guard let windowLabel else { return [] }
-        return ["window", windowLabel.lowercased()]
+        guard windowLabel != nil else { return [] }
+        // The window LABEL is deliberately not a search keyword: windows are
+        // titled after their active tab, so every entry in a window named
+        // "[mosh] xianxing-altitude" would be a perfect match for that query —
+        // ranking arbitrary neighbors above the actual tab (teren, 2026-08-04).
+        // The label stays visible in row subtitles for disambiguation.
+        return ["window"]
     }
 
     private func commandPaletteOrderedSwitcherWorkspaces(
