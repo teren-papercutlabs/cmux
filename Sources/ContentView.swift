@@ -1203,9 +1203,14 @@ struct ContentView: View {
 
     private func shouldShowActivePaneBorder(for workspace: Workspace, colorHex: String?, in window: NSWindow? = nil) -> Bool {
         // Altitude: the blue border means THE focused pane, globally — exactly
-        // one across all windows, so an inactive window shows none
-        // (teren, 2026-08-04). Vanilla keeps the per-window memory behavior.
-        if AltitudeConfiguration.isEnabled(), let window, !window.isKeyWindow { return false }
+        // one across all windows, so an inactive window shows none, and a
+        // single-pane KEY window still shows it (the border marks where the
+        // keyboard is, not intra-window disambiguation — teren, 2026-08-04).
+        // Vanilla keeps the per-window, multi-pane-only memory behavior.
+        if AltitudeConfiguration.isEnabled() {
+            guard let window, window.isKeyWindow else { return false }
+            return colorHex != nil && workspace.layoutMode != .canvas && !fileExplorerState.rightSidebarOwnsInputFocus
+        }
         return colorHex != nil && workspace.layoutMode != .canvas && !fileExplorerState.rightSidebarOwnsInputFocus && workspace.bonsplitController.allPaneIds.count > 1
     }
 
