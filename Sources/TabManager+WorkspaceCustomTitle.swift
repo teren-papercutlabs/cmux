@@ -12,6 +12,17 @@ extension TabManager {
         propagateToRemoteTmux: Bool = true
     ) -> Bool {
         guard let index = tabs.firstIndex(where: { $0.id == tabId }) else { return false }
+        // Mandated Altitude workspaces keep their names (decision 27). Writing
+        // the mandated name itself is allowed (adoption normalizes titles).
+        if AltitudeConfiguration.isEnabled(),
+           !AltitudeWorkspaceMandate.allowsRename(
+               workspaceID: tabId,
+               proposedTitle: title ?? "",
+               priorityID: AppDelegate.shared?.altitudeMandatedWorkspaceID(.priority),
+               flexID: AppDelegate.shared?.altitudeMandatedWorkspaceID(.flex)
+           ) {
+            return false
+        }
         let previousDisplayTitle = resolvedWorkspaceDisplayTitle(for: tabs[index])
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let applied = tabs[index].setCustomTitle(title, source: source)

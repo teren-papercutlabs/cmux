@@ -1983,7 +1983,7 @@ final class Workspace: Identifiable, ObservableObject {
     /// Restart-stable workspace identifier persisted for durable deep links.
     private(set) var stableId = UUID()
     private var forkAgentConversationInFlightPanelIds: Set<UUID> = []
-    private var isApplyingAltitudeSeatMove = false
+    var isApplyingAltitudeSeatMove = false
 
     func beginForkAgentConversationAction(panelId: UUID) -> Bool {
         guard !forkAgentConversationInFlightPanelIds.contains(panelId) else {
@@ -3630,6 +3630,15 @@ final class Workspace: Identifiable, ObservableObject {
         _ terminalPanel: TerminalPanel,
         allowTextBoxFocusDefault: Bool = true
     ) {
+        // Decision 27: a brand-new tab created inside Priority (cmd-T) is not
+        // a seat; the async sweep bounces it to Flex. Exempt the Altitude
+        // menu's own surface creation (isApplyingAltitudeSeatMove).
+        if AltitudeConfiguration.isEnabled(), !isApplyingAltitudeSeatMove,
+           id == AppDelegate.shared?.altitudeMandatedWorkspaceID(.priority) {
+            DispatchQueue.main.async {
+                AppDelegate.shared?.altitudeEnforcePriorityMembership()
+            }
+        }
         // Record the workspace env this freshly-created panel inherited, so a later
         // respawn (which reuses this panel even after a move to another workspace)
         // can drop it and re-apply the current workspace's env instead of leaking
@@ -4264,62 +4273,13 @@ final class Workspace: Identifiable, ObservableObject {
     }
 
     func anointAltitudeSeat(_ role: PcLPrioritySwitcherConfiguration.Role, panelID: UUID) {
-        guard panels[panelID] != nil else { return }
-
-        // Identity-based SWAP, never positional: the new tab takes the pane of
-        // the role's CURRENT holder, and the old holder lands where the new
-        // one came from (usually the stack). Positional pane indices broke the
-        // moment a seat pane closed; and moving the old holder out FIRST let
-        // the emptied seat pane auto-close, so the incoming move targeted a
-        // dead pane and the seat visually vanished (teren, 2026-08-03).
-        let previousConfiguration = PcLPrioritySwitcherConfiguration.load()
-        let previousHolderID: UUID? = {
-            let id = role == .lead
-                ? previousConfiguration.leadSurfaceId
-                : previousConfiguration.understudySurfaceId
-            guard let id, id != panelID, panels[id] != nil else { return nil }
-            return id
-        }()
-
-        var configuration = previousConfiguration
-        configuration.assign(role: role, surfaceId: panelID)
-        configuration.save()
-
-        isApplyingAltitudeSeatMove = true
-        defer { isApplyingAltitudeSeatMove = false }
-
-        if let previousHolderID,
-           let seatPane = paneId(forPanelId: previousHolderID),
-           let sourcePane = paneId(forPanelId: panelID),
-           seatPane != sourcePane {
-            // Order matters: move the NEW surface into the seat pane first so
-            // it can never empty and auto-close, THEN move the old holder to
-            // where the new one came from.
-            _ = moveSurface(panelId: panelID, toPane: seatPane, atIndex: 0, focus: true)
-            _ = moveSurface(panelId: previousHolderID, toPane: sourcePane, focus: false)
-        }
-        if let previousHolderID,
-           configuration.leadSurfaceId != previousHolderID,
-           configuration.understudySurfaceId != previousHolderID {
-            // Evicted from its seat entirely: an ordinary tab is not pinned.
-            setPanelPinned(panelId: previousHolderID, pinned: false)
-        }
-        setPanelPinned(panelId: panelID, pinned: true)
-
-        bonsplitController.invalidateHostProvidedChrome()
-        objectWillChange.send()
-        NotificationCenter.default.post(name: .altitudeSeatConfigurationDidChange, object: self)
+        // Decision 27: anoint is workspace membership. The cross-workspace
+        // execution lives on AppDelegate (it spans windows/workspaces).
+        AppDelegate.shared?.altitudeAnoint(role: role, panelID: panelID)
     }
 
     func clearAltitudeSeat(for panelID: UUID) {
-        var configuration = PcLPrioritySwitcherConfiguration.load()
-        if configuration.leadSurfaceId == panelID { configuration.leadSurfaceId = nil }
-        if configuration.understudySurfaceId == panelID { configuration.understudySurfaceId = nil }
-        configuration.save()
-        setPanelPinned(panelId: panelID, pinned: false)
-        bonsplitController.invalidateHostProvidedChrome()
-        objectWillChange.send()
-        NotificationCenter.default.post(name: .altitudeSeatConfigurationDidChange, object: self)
+        AppDelegate.shared?.altitudeClearSeat(panelID: panelID)
     }
 
     func setPanelPinned(panelId: UUID, pinned: Bool) {
@@ -9411,6 +9371,15 @@ final class Workspace: Identifiable, ObservableObject {
             "elapsedMs=\(debugElapsedMs(since: attachStart))"
         )
 #endif
+        // Decision 27: Priority admits only the seats. Enforcement runs
+        // POST-attach (async, idempotent) so the attach itself stays atomic
+        // and the seat-move path is not re-entered mid-mutation.
+        if AltitudeConfiguration.isEnabled(), !isApplyingAltitudeSeatMove,
+           id == AppDelegate.shared?.altitudeMandatedWorkspaceID(.priority) {
+            DispatchQueue.main.async {
+                AppDelegate.shared?.altitudeEnforcePriorityMembership()
+            }
+        }
         return detached.panelId
     }
 

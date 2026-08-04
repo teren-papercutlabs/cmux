@@ -5795,13 +5795,22 @@ struct ContentView: View {
             altitudeTUIHostState = nil
         }
 
-        let paneIDs = workspace.bonsplitController.allPaneIds
+        // Decision 27: the menu never lives in Priority (it would be bounced
+        // as a non-seat). Invoked from Priority, it hosts in Flex instead.
+        let hostWorkspace: Workspace = {
+            guard workspace.id == AppDelegate.shared?.altitudeMandatedWorkspaceID(.priority),
+                  let flexID = AppDelegate.shared?.altitudeMandatedWorkspaceID(.flex),
+                  let flexManager = AppDelegate.shared?.tabManagerFor(tabId: flexID),
+                  let flex = flexManager.tabs.first(where: { $0.id == flexID }) else { return workspace }
+            return flex
+        }()
+        let paneIDs = hostWorkspace.bonsplitController.allPaneIds
         let seatConfiguration = PcLPrioritySwitcherConfiguration.load()
         let seatPanes = Set(
             [seatConfiguration.leadSurfaceId, seatConfiguration.understudySurfaceId]
                 .compactMap { $0 }
-                .filter { workspace.panels[$0] != nil }
-                .compactMap { workspace.paneId(forPanelId: $0) }
+                .filter { hostWorkspace.panels[$0] != nil }
+                .compactMap { hostWorkspace.paneId(forPanelId: $0) }
         )
         guard let menuPane = AltitudeTUIHostPresentation.targetPane(paneIDs: paneIDs, seatPanes: seatPanes) else { return }
         let returnPanelID = workspace.focusedPanelId
@@ -5829,7 +5838,7 @@ struct ContentView: View {
             tuiDirectory: tuiDirectory,
             returnTargetPath: returnTargetPath
         ) else { return }
-        guard let panel = workspace.newTerminalSurface(
+        guard let panel = hostWorkspace.newTerminalSurface(
             inPane: menuPane,
             focus: true,
             workingDirectory: tuiDirectory,
@@ -5837,7 +5846,7 @@ struct ContentView: View {
             startupEnvironment: ["ALTITUDE_PRIORITY_JSON": priorityJSON]
         ) else { return }
         altitudeTUIHostState = AltitudeTUIHostState(
-            workspaceID: workspace.id,
+            workspaceID: hostWorkspace.id,
             panelID: panel.id,
             returnWorkspaceID: workspace.id,
             returnPanelID: returnPanelID,

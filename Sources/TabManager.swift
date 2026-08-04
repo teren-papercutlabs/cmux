@@ -2186,7 +2186,17 @@ class TabManager: ObservableObject {
     }
 
     func canCloseWorkspace(_ workspace: Workspace, allowPinned: Bool = false) -> Bool {
-        allowPinned || !workspace.isPinned
+        // Mandated Altitude workspaces (Priority/Flex) can never close,
+        // regardless of pin state or allowPinned (decision 27).
+        if AltitudeConfiguration.isEnabled(),
+           !AltitudeWorkspaceMandate.allowsClose(
+               workspaceID: workspace.id,
+               priorityID: AppDelegate.shared?.altitudeMandatedWorkspaceID(.priority),
+               flexID: AppDelegate.shared?.altitudeMandatedWorkspaceID(.flex)
+           ) {
+            return false
+        }
+        return allowPinned || !workspace.isPinned
     }
 
     @discardableResult
