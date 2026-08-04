@@ -676,7 +676,7 @@ extension Workspace {
             workspaceTodoSnapshot = SessionWorkspaceTodoPanelSnapshot()
         case .extensionBrowser:
             return nil
-        case .cloudVMLoading:
+        case .cloudVMLoading, .altitudeSeatPlaceholder:
             return nil
         }
         return SessionPanelSnapshot(
@@ -1697,7 +1697,7 @@ extension Workspace {
             return todoPanel.id
         case .extensionBrowser:
             return nil
-        case .cloudVMLoading:
+        case .cloudVMLoading, .altitudeSeatPlaceholder:
             return nil
         }
     }

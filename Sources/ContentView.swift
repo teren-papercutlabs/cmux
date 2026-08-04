@@ -6169,6 +6169,8 @@ struct ContentView: View {
             return String(localized: "commandPalette.kind.workspaceTodo", defaultValue: "Todos")
         case .cloudVMLoading:
             return String(localized: "commandPalette.kind.cloudVMLoading", defaultValue: "Cloud VM")
+        case .altitudeSeatPlaceholder:
+            return String(localized: "commandPalette.kind.altitudeSeat", defaultValue: "Seat")
         }
     }
     private func commandPaletteSurfaceKeywords(for panelType: PanelType) -> [String] {
@@ -6195,6 +6197,8 @@ struct ContentView: View {
             return ["todo", "todos", "checklist", "task", "status"]
         case .cloudVMLoading:
             return ["cloud", "vm", "loading"]
+        case .altitudeSeatPlaceholder:
+            return ["seat", "priority"]
         }
     }
     private func commandPaletteCachedCommandsContext() -> CommandPaletteCommandsContext {
@@ -12737,7 +12741,7 @@ struct VerticalTabsSidebar: View, Equatable {
             return .project
         case .extensionBrowser:
             return .unknown
-        case .workspaceTodo, .cloudVMLoading:
+        case .workspaceTodo, .cloudVMLoading, .altitudeSeatPlaceholder:
             return .unknown
         }
     }

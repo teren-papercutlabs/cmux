@@ -31,7 +31,7 @@ extension Workspace {
             return SurfaceKind.extensionBrowser.rawValue
         case .workspaceTodo:
             return SurfaceKind.todo.rawValue
-        case .cloudVMLoading:
+        case .cloudVMLoading, .altitudeSeatPlaceholder:
             return SurfaceKind.cloudVMLoading.rawValue
         }
     }

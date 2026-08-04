@@ -1,5 +1,6 @@
 import AppKit
 import Bonsplit
+import CmuxWorkspaces
 
 // Decision 27 (teren-ruled 2026-08-04): two MANDATED workspaces. "Priority"
 // holds exactly the 1A/1B seats; "Flex" holds everything else. Both always
